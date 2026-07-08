@@ -327,3 +327,44 @@ CREATE INDEX IF NOT EXISTS idx_diary_profile_date
   ON diary_entries(profile_id, entry_date DESC, sort_order ASC);
 CREATE INDEX IF NOT EXISTS idx_diary_profile_pinned
   ON diary_entries(profile_id, is_pinned DESC, entry_date DESC);
+
+-- ============================================================
+-- Lesson / Quiz 模块 — 私教答题学习状态
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS lesson_sessions (
+  id TEXT PRIMARY KEY,
+  lesson_id TEXT NOT NULL,
+  video_id TEXT,
+  current_step_index INTEGER NOT NULL DEFAULT 0,
+  total_stars INTEGER NOT NULL DEFAULT 0,
+  fish INTEGER NOT NULL DEFAULT 0,
+  growth INTEGER NOT NULL DEFAULT 0,
+  step_results_json TEXT NOT NULL DEFAULT '{}',
+  review_queue_json TEXT NOT NULL DEFAULT '[]',
+  started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS lesson_attempts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id TEXT NOT NULL,
+  step_id TEXT NOT NULL,
+  attempt_num INTEGER NOT NULL DEFAULT 1,
+  answer TEXT NOT NULL,
+  score REAL NOT NULL DEFAULT 0,
+  matched_count INTEGER NOT NULL DEFAULT 0,
+  required_count INTEGER NOT NULL DEFAULT 0,
+  passed INTEGER NOT NULL DEFAULT 0 CHECK (passed IN (0, 1)),
+  stars_earned INTEGER NOT NULL DEFAULT 0,
+  cat_message TEXT,
+  missed_points_json TEXT NOT NULL DEFAULT '[]',
+  wrong_points_json TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (session_id) REFERENCES lesson_sessions(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_lesson_sessions_lesson
+  ON lesson_sessions(lesson_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_lesson_attempts_session
+  ON lesson_attempts(session_id, step_id, attempt_num DESC);

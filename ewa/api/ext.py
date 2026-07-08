@@ -4,24 +4,33 @@
 - POST /api/ext/register_video  注册视频并匹配B站字幕
 - POST /api/ext/chat            带当前时间戳的视频问答（LLM + 离线回退）
 - GET  /api/ext/health          后端连通性检查
+
+业务逻辑委托给 ewa.demo 模块：
+- faq: 离线 FAQ 知识库匹配
+- subtitle: 字幕加载/缓存/搜索/视频匹配
+- 以及 ewa.llm: 统一 LLM 客户端
 """
 
 from __future__ import annotations
 
-import json
 import re
 from typing import Any
 
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from ewa.config import SUBTITLE_DIR, SCORED_VIDEOS, MOONSHOT_API_KEY, DEEPSEEK_API_KEY
+from ewa.config import SUBTITLE_DIR, MOONSHOT_API_KEY, DEEPSEEK_API_KEY
+from ewa.llm import LLMClient
+from ewa.demo.faq import match_offline_faq
+from ewa.demo.subtitle import (
+    get_video_cache,
+    load_subtitles,
+    match_bilibili_video,
+    get_context_subtitles,
+    search_subtitles,
+)
 
 router = APIRouter(prefix="/api/ext", tags=["extension"])
-
-# 简单内存缓存
-_video_cache: dict[str, dict] = {}
-_subtitle_cache: dict[str, list[dict]] = {}
 
 
 # ── 请求/响应模型 ────────────────────────────────────────────
@@ -39,240 +48,31 @@ class ChatRequest(BaseModel):
     current_time_sec: int = 0
 
 
-# ── 离线 FAQ 知识库 ─────────────────────────────────────────
-
-OFFLINE_FAQ = {
-    "正当防卫": {
-        "answer": (
-            "正当防卫需要满足五个构成要件：\n"
-            "1️⃣ 起因条件——必须存在现实的不法侵害\n"
-            "2️⃣ 时间条件——不法侵害必须正在进行\n"
-            "3️⃣ 对象条件——只能针对侵害人本人\n"
-            "4️⃣ 主观条件——必须具有防卫意图\n"
-            "5️⃣ 限度条件——不能明显超过必要限度\n\n"
-            "此外，刑法第20条第3款规定了特殊防卫权：对正在进行的行凶、杀人、抢劫、强奸、绑架等"
-            "严重危及人身安全的暴力犯罪，防卫致不法侵害人伤亡的，不负刑事责任。"
-        ),
-        "keywords": ["正当防卫", "构成要件", "要件", "条件", "防卫"],
-    },
-    "假想防卫": {
-        "answer": (
-            "假想防卫是指客观上不存在不法侵害，但行为人误以为存在而实施防卫行为。\n"
-            "假想防卫不构成正当防卫！因为正当防卫要求不法侵害客观存在。\n"
-            "处理方式：按事实认识错误处理——有过失的定过失犯罪，无过失的属意外事件。"
-        ),
-        "keywords": ["假想防卫", "假想", "误以为", "想象"],
-    },
-    "防卫过当": {
-        "answer": (
-            "防卫过当是指防卫行为明显超过必要限度造成重大损害。\n"
-            "防卫过当应当负刑事责任，但是应当减轻或者免除处罚。\n"
-            "注意：特殊防卫（刑法第20条第3款）不存在防卫过当的问题。"
-        ),
-        "keywords": ["防卫过当", "过当", "超过", "限度", "过度"],
-    },
-    "特殊防卫": {
-        "answer": (
-            "特殊防卫（无限防卫权）规定在刑法第20条第3款：\n"
-            "对正在进行的行凶、杀人、抢劫、强奸、绑架以及其他严重危及人身安全的暴力犯罪，"
-            "采取防卫行为，造成不法侵害人伤亡的，不属于防卫过当，不负刑事责任。\n"
-            "适用条件：必须是严重危及人身安全的暴力犯罪，且侵害正在进行。"
-        ),
-        "keywords": ["特殊防卫", "无限防卫", "第3款", "20条", "伤亡"],
-    },
-    "互殴": {
-        "answer": (
-            "互殴是指双方都有加害对方的意图，互相打斗。\n"
-            "互殴双方都不成立正当防卫！因为双方都没有防卫意图，只有伤害故意。\n"
-            "例外：互殴中一方明确停止而另一方继续攻击的，停止方可以成立正当防卫。"
-        ),
-        "keywords": ["互殴", "互相打", "斗殴", "打架", "双方"],
-    },
-    "挑拨防卫": {
-        "answer": (
-            "挑拨防卫是指故意用言语或行为挑逗、激怒对方，让对方先动手，"
-            "然后以'防卫'为名进行反击。\n"
-            "挑拨防卫不构成正当防卫！因为你主观上没有防卫意图，目的是加害对方。\n"
-            "这是滥用防卫权的行为，要承担故意犯罪的刑事责任。"
-        ),
-        "keywords": ["挑拨", "挑逗", "激怒", "故意引发"],
-    },
-}
-
-
-def _match_offline_faq(message: str) -> str | None:
-    """匹配离线 FAQ，返回最佳答案或 None"""
-    best, best_score = None, 0
-    for item in OFFLINE_FAQ.values():
-        score = sum(1 for kw in item["keywords"] if kw in message)
-        if score > best_score:
-            best_score = score
-            best = item["answer"]
-    return best if best_score >= 1 else None
-
-
-# ── 字幕工具 ────────────────────────────────────────────────
-
-def load_scored_videos() -> list[dict]:
-    if not SCORED_VIDEOS.exists():
-        return []
-    with open(SCORED_VIDEOS, encoding="utf-8") as f:
-        return json.load(f)
-
-
-def load_subtitles(bvid: str) -> list[dict]:
-    if bvid in _subtitle_cache:
-        return _subtitle_cache[bvid]
-    path = SUBTITLE_DIR / f"{bvid}.json"
-    if not path.exists():
-        return []
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
-    subs = data.get("subtitles", [])
-    _subtitle_cache[bvid] = subs
-    return subs
-
-
-def match_bilibili_video(title: str) -> dict | None:
-    """用标题关键词匹配 B 站已下载字幕库里最相关的视频"""
-    scored = load_scored_videos()
-    if not scored:
-        for path in SUBTITLE_DIR.glob("*.json"):
-            try:
-                with open(path, encoding="utf-8") as f:
-                    data = json.load(f)
-                scored.append({
-                    "bvid": data.get("bvid", path.stem),
-                    "title": data.get("title", ""),
-                    "subtitle_count": len(data.get("subtitles", [])),
-                })
-            except Exception:
-                pass
-
-    if not scored:
-        return None
-
-    title_chars = set(title)
-    best, best_score = None, 0
-    for v in scored:
-        v_chars = set(v.get("title", ""))
-        overlap = len(title_chars & v_chars)
-        if overlap > best_score:
-            best_score = overlap
-            best = v
-
-    if best and best_score >= 3:
-        return best
-    return None
-
-
-def get_context_subtitles(bvid: str, current_sec: int, window: int = 30) -> list[dict]:
-    """返回当前时间戳前后 window 秒的字幕句子"""
-    subs = load_subtitles(bvid)
-    if not subs:
-        return []
-    lo, hi = current_sec - window, current_sec + window
-    return [s for s in subs if lo <= s.get("start", 0) <= hi]
-
-
-def search_subtitles(bvid: str, query: str, top_k: int = 3) -> list[dict]:
-    """在字幕中搜索与 query 最相关的片段（离线回退用）"""
-    subs = load_subtitles(bvid)
-    if not subs:
-        return []
-
-    query_chars = set(query)
-    scored = []
-    for s in subs:
-        text = s.get("text", "")
-        text_chars = set(text)
-        overlap = len(query_chars & text_chars)
-        if overlap >= 3:
-            scored.append((overlap, s))
-
-    scored.sort(key=lambda x: x[0], reverse=True)
-    return [s for _, s in scored[:top_k]]
-
-
-# ── LLM 调用 ────────────────────────────────────────────────
-
-async def call_llm(system: str, user: str) -> str | None:
-    """
-    调用可用的 LLM。优先 Kimi，其次 DeepSeek。
-    返回 None 表示全部不可用（触发离线回退）。
-    """
-    kimi_key = MOONSHOT_API_KEY
-    if kimi_key:
-        try:
-            import httpx
-            async with httpx.AsyncClient(timeout=20) as client:
-                res = await client.post(
-                    "https://api.moonshot.cn/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {kimi_key}"},
-                    json={
-                        "model": "moonshot-v1-8k",
-                        "messages": [
-                            {"role": "system", "content": system},
-                            {"role": "user", "content": user},
-                        ],
-                        "max_tokens": 600,
-                    },
-                )
-                if res.status_code == 200:
-                    return res.json()["choices"][0]["message"]["content"]
-        except Exception:
-            pass
-
-    ds_key = DEEPSEEK_API_KEY
-    if ds_key:
-        try:
-            import httpx
-            async with httpx.AsyncClient(timeout=20) as client:
-                res = await client.post(
-                    "https://api.deepseek.com/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {ds_key}"},
-                    json={
-                        "model": "deepseek-chat",
-                        "messages": [
-                            {"role": "system", "content": system},
-                            {"role": "user", "content": user},
-                        ],
-                        "max_tokens": 600,
-                    },
-                )
-                if res.status_code == 200:
-                    return res.json()["choices"][0]["message"]["content"]
-        except Exception:
-            pass
-
-    return None  # 全部不可用
-
-
 # ── 端点 ────────────────────────────────────────────────────
 
 @router.get("/health")
 async def health() -> dict[str, Any]:
-    """连通性检查（Extension 可用此端点判断后端是否在线）"""
+    """连通性检查（Extension 可用此端点判断后端是否在线）。"""
     llm_available = bool(MOONSHOT_API_KEY or DEEPSEEK_API_KEY)
     subtitle_count = len(list(SUBTITLE_DIR.glob("*.json"))) if SUBTITLE_DIR.exists() else 0
     return {
         "status": "ok",
         "llm_available": llm_available,
         "subtitle_files": subtitle_count,
-        "cached_videos": len(_video_cache),
+        "cached_videos": len(get_video_cache()),
     }
 
 
 @router.post("/register_video")
 async def register_video(req: RegisterVideoRequest) -> dict[str, Any]:
-    """
-    注册视频：
+    """注册视频：
     - 抖音视频：用标题匹配 B 站字幕库
     - B站视频：直接检查字幕是否存在
     """
+    video_cache = get_video_cache()
     ckey = f"{req.platform}:{req.video_id}"
-    if ckey in _video_cache:
-        return _video_cache[ckey]
+    if ckey in video_cache:
+        return video_cache[ckey]
 
     result: dict[str, Any] = {
         "video_id": req.video_id,
@@ -296,14 +96,13 @@ async def register_video(req: RegisterVideoRequest) -> dict[str, Any]:
         subs = load_subtitles(req.video_id)
         result["subtitle_count"] = len(subs)
 
-    _video_cache[ckey] = result
+    video_cache[ckey] = result
     return result
 
 
 @router.post("/chat")
 async def chat(req: ChatRequest) -> dict[str, Any]:
-    """
-    视频问答：根据当前时间戳，截取字幕上下文，调用 LLM 作答。
+    """视频问答：根据当前时间戳，截取字幕上下文，调用 LLM 作答。
 
     三层回退策略：
     1. LLM（Kimi → DeepSeek）— 最佳
@@ -312,8 +111,9 @@ async def chat(req: ChatRequest) -> dict[str, Any]:
     """
     # 确定 bvid
     if req.platform == "douyin":
+        video_cache = get_video_cache()
         ckey = f"douyin:{req.video_id}"
-        cached = _video_cache.get(ckey, {})
+        cached = video_cache.get(ckey, {})
         matched = cached.get("matched_bilibili")
         bvid = matched["bvid"] if matched else None
     else:
@@ -349,7 +149,8 @@ async def chat(req: ChatRequest) -> dict[str, Any]:
 2. 法学题目必须引用刑法条款或案例名，不能凭感觉作答
 3. 回答不超过200字"""
 
-    llm_answer = await call_llm(system, req.message)
+    llm_client = LLMClient()
+    llm_answer = await llm_client.chat(system, req.message, max_tokens=600)
 
     if llm_answer:
         seek_to_sec = None
@@ -388,7 +189,7 @@ async def chat(req: ChatRequest) -> dict[str, Any]:
             }
 
     # ── 第三层：离线 FAQ ────────────────────────────────────
-    faq_answer = _match_offline_faq(req.message)
+    faq_answer = match_offline_faq(req.message)
     if faq_answer:
         return {
             "answer": "🤖 猫猫暂时连不上后端大脑，但我知道这个：\n\n" + faq_answer,

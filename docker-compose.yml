@@ -14,3 +14,4 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - EWA_DATA_DIR=/app/data
       - MIAOMIAO_DATA_DIR=/app/data/miaomiao
+      - EWA_CORS_ORIGINS=${EWA_CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}

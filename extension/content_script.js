@@ -11,7 +11,8 @@
   "use strict";
 
   // ── 配置 ──────────────────────────────────────────────────
-  const API_BASE = "http://localhost:8000";
+  // P1-3: API_BASE 从 chrome.storage 读取，默认 localhost:8000
+  let API_BASE = "http://localhost:8000";
   const POLL_INTERVAL_MS = 2000; // 检测播放器的轮询间隔
 
   // ── 猫咪表情（CSS emoji，6 种状态） ────────────────────────
@@ -730,6 +731,20 @@
 
   // ── 初始化 ────────────────────────────────────────────────
 
+  /** 从 background.js 获取配置的 API 地址 */
+  async function resolveApiBase() {
+    try {
+      const response = await chrome.runtime.sendMessage({ type: "GET_API_BASE" });
+      if (response && response.apiBaseUrl) {
+        API_BASE = response.apiBaseUrl;
+        console.log(`[妙喵] API 地址: ${API_BASE}`);
+      }
+    } catch (e) {
+      // 使用默认值 localhost:8000
+      console.log(`[妙喵] 使用默认 API 地址: ${API_BASE}`);
+    }
+  }
+
   async function init() {
     const detected = detectPlatform();
     if (!detected) return; // 非视频页，不注入
@@ -744,6 +759,9 @@
 
     // 注入 UI
     injectUI();
+
+    // P1-3: 从 chrome.storage 获取 API 地址
+    await resolveApiBase();
 
     // 检查后端连通性
     const backendOnline = await checkBackendHealth();

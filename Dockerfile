@@ -7,7 +7,7 @@ RUN pip install --no-cache-dir -e .
 
 COPY ewa/ ewa/
 COPY data/ data/
-COPY docs/personal-site-schema.sql docs/
+COPY docs/schema.sql docs/
 
 EXPOSE 8000
 
