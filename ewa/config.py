@@ -23,7 +23,7 @@ VIDEO_LIST = MIAOMIAO_DIR / "video_list.json"
 # ── 数据库 ──────────────────────────────────────────────
 SITE_DB_PATH = Path(os.getenv("EWA_SITE_DB_PATH", DATA_DIR / "miaomiao.db"))
 SITE_SCHEMA_PATH = Path(
-    os.getenv("EWA_SITE_SCHEMA_PATH", PROJECT_ROOT / "docs" / "personal-site-schema.sql")
+    os.getenv("EWA_SITE_SCHEMA_PATH", PROJECT_ROOT / "docs" / "schema.sql")
 )
 
 # ── LLM API Keys ────────────────────────────────────────
