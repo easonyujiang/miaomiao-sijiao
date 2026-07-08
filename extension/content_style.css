@@ -1,0 +1,595 @@
+/* ── 妙喵私教 Content Script 样式 ─────────────────────────── */
+
+/* CSS 变量 */
+:root {
+  --miaomiao-primary: #f59e0b;
+  --miaomiao-primary-hover: #d97706;
+  --miaomiao-success: #10b981;
+  --miaomiao-danger: #ef4444;
+  --miaomiao-warning: #f59e0b;
+  --miaomiao-bg: #ffffff;
+  --miaomiao-bg-secondary: #f9fafb;
+  --miaomiao-text: #1f2937;
+  --miaomiao-text-secondary: #6b7280;
+  --miaomiao-border: #e5e7eb;
+  --miaomiao-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
+  --miaomiao-radius: 16px;
+  --miaomiao-radius-sm: 10px;
+  --miaomiao-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+}
+
+/* ── 气泡按钮 ─────────────────────────────────────────────── */
+.miaomiao-bubble {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--miaomiao-bg);
+  border: 2px solid var(--miaomiao-primary);
+  box-shadow: var(--miaomiao-shadow);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99990;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.3s ease;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.miaomiao-bubble:hover {
+  transform: scale(1.1);
+  box-shadow: 0 12px 40px rgba(245, 158, 11, 0.25);
+}
+
+.miaomiao-bubble-active {
+  border-color: var(--miaomiao-primary);
+  background: #fffbeb;
+  box-shadow: 0 12px 40px rgba(245, 158, 11, 0.3);
+}
+
+#miaomiao-bubble-emoji {
+  font-size: 28px;
+  line-height: 1;
+}
+
+/* 进度标记 */
+.miaomiao-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--miaomiao-primary);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  font-family: var(--miaomiao-font);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* ── 面板容器 ─────────────────────────────────────────────── */
+.miaomiao-panel {
+  position: fixed;
+  bottom: 96px;
+  right: 24px;
+  width: 380px;
+  max-height: 600px;
+  background: var(--miaomiao-bg);
+  border-radius: var(--miaomiao-radius);
+  box-shadow: var(--miaomiao-shadow);
+  z-index: 99991;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: var(--miaomiao-font);
+  color: var(--miaomiao-text);
+  animation: miaomiao-slide-up 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  border: 1px solid var(--miaomiao-border);
+}
+
+@keyframes miaomiao-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ── 面板头部 ─────────────────────────────────────────────── */
+.miaomiao-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--miaomiao-border);
+  background: #fffbeb;
+  flex-shrink: 0;
+}
+
+.miaomiao-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+#miaomiao-cat-state-emoji {
+  font-size: 22px;
+}
+
+.miaomiao-icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--miaomiao-text-secondary);
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.miaomiao-icon-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+/* ── 面板内容 ─────────────────────────────────────────────── */
+.miaomiao-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px;
+  scroll-behavior: smooth;
+}
+
+.miaomiao-panel-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.miaomiao-panel-body::-webkit-scrollbar-thumb {
+  background: var(--miaomiao-border);
+  border-radius: 2px;
+}
+
+/* ── 通用按钮 ─────────────────────────────────────────────── */
+.miaomiao-btn {
+  display: block;
+  width: 100%;
+  padding: 11px 16px;
+  border: none;
+  border-radius: var(--miaomiao-radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--miaomiao-font);
+  text-align: center;
+  margin-top: 12px;
+}
+
+.miaomiao-btn-primary {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  color: white;
+}
+
+.miaomiao-btn-primary:hover {
+  background: linear-gradient(135deg, #d97706, #ea580c);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
+.miaomiao-btn-secondary {
+  background: var(--miaomiao-bg-secondary);
+  color: var(--miaomiao-text);
+  border: 1px solid var(--miaomiao-border);
+}
+
+.miaomiao-btn-secondary:hover {
+  background: #f3f4f6;
+}
+
+.miaomiao-btn-text {
+  background: none;
+  color: var(--miaomiao-primary);
+  font-weight: 500;
+  padding: 6px 0;
+  margin-top: 4px;
+}
+
+.miaomiao-btn-text:hover {
+  color: var(--miaomiao-primary-hover);
+  text-decoration: underline;
+}
+
+/* ── 落地页 ───────────────────────────────────────────────── */
+.miaomiao-landing {
+  text-align: center;
+  padding: 16px 0;
+}
+
+.miaomiao-landing-emoji {
+  font-size: 56px;
+  margin-bottom: 12px;
+  animation: miaomiao-float 2s ease-in-out infinite;
+}
+
+@keyframes miaomiao-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.miaomiao-landing-text {
+  color: var(--miaomiao-text-secondary);
+  font-size: 14px;
+  margin: 8px 0;
+}
+
+.miaomiao-landing-hint {
+  color: var(--miaomiao-text-secondary);
+  font-size: 12px;
+}
+
+.miaomiao-lesson-title {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 8px 0 4px;
+  color: var(--miaomiao-text);
+}
+
+.miaomiao-lesson-creator {
+  font-size: 13px;
+  color: var(--miaomiao-text-secondary);
+  margin: 0 0 4px;
+}
+
+.miaomiao-lesson-meta {
+  font-size: 13px;
+  color: var(--miaomiao-text-secondary);
+  margin: 4px 0 12px;
+}
+
+/* ── 步骤页 ───────────────────────────────────────────────── */
+.miaomiao-step-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.miaomiao-step-badge {
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+
+.miaomiao-step-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--miaomiao-text);
+}
+
+.miaomiao-retry-badge {
+  font-size: 11px;
+  color: var(--miaomiao-danger);
+  background: #fee2e2;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.miaomiao-step-instruction {
+  background: #f0f9ff;
+  border-radius: var(--miaomiao-radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.miaomiao-step-instruction p {
+  margin: 0;
+}
+
+.miaomiao-step-keypoint {
+  background: #fefce8;
+  border-left: 3px solid var(--miaomiao-warning);
+  border-radius: 0 var(--miaomiao-radius-sm) var(--miaomiao-radius-sm) 0;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.miaomiao-step-errors {
+  background: #fff7ed;
+  border-left: 3px solid var(--miaomiao-danger);
+  border-radius: 0 var(--miaomiao-radius-sm) var(--miaomiao-radius-sm) 0;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.miaomiao-step-errors ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+/* ── 答题区 ───────────────────────────────────────────────── */
+.miaomiao-quiz-question {
+  background: #faf5ff;
+  border: 1px solid #e9d5ff;
+  border-radius: var(--miaomiao-radius-sm);
+  padding: 14px;
+  margin-bottom: 12px;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.miaomiao-quiz-question p {
+  margin: 0;
+}
+
+.miaomiao-textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--miaomiao-border);
+  border-radius: var(--miaomiao-radius-sm);
+  font-size: 14px;
+  font-family: var(--miaomiao-font);
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 90px;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.miaomiao-textarea:focus {
+  outline: none;
+  border-color: var(--miaomiao-primary);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+}
+
+.miaomiao-hint {
+  color: var(--miaomiao-danger);
+  font-size: 12px;
+  margin: 4px 0 0;
+}
+
+/* ── 加载中 ───────────────────────────────────────────────── */
+.miaomiao-loading {
+  text-align: center;
+  padding: 32px 0;
+}
+
+.miaomiao-loading-spinner {
+  font-size: 48px;
+  animation: miaomiao-spin 1.5s ease-in-out infinite;
+}
+
+@keyframes miaomiao-spin {
+  0%,
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.2);
+  }
+}
+
+.miaomiao-loading p {
+  color: var(--miaomiao-text-secondary);
+  margin-top: 12px;
+  font-size: 14px;
+}
+
+/* ── 错误 ─────────────────────────────────────────────────── */
+.miaomiao-error {
+  text-align: center;
+  padding: 24px 0;
+}
+
+.miaomiao-error-icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+}
+
+.miaomiao-error p {
+  color: var(--miaomiao-text-secondary);
+  font-size: 14px;
+}
+
+/* ── 结果页 ───────────────────────────────────────────────── */
+.miaomiao-result {
+  text-align: center;
+  padding: 8px 0;
+}
+
+.miaomiao-result-emoji {
+  font-size: 52px;
+  margin-bottom: 8px;
+  animation: miaomiao-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes miaomiao-pop {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.miaomiao-result h3 {
+  font-size: 18px;
+  margin: 4px 0;
+}
+
+.miaomiao-cat-message {
+  font-size: 13px;
+  color: var(--miaomiao-text-secondary);
+  line-height: 1.6;
+  margin: 8px 0;
+  white-space: pre-line;
+}
+
+.miaomiao-result-stats {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin: 10px 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.miaomiao-progress-bar {
+  height: 6px;
+  background: var(--miaomiao-border);
+  border-radius: 3px;
+  margin: 12px 0 4px;
+  overflow: hidden;
+}
+
+.miaomiao-progress-fill {
+  height: 100%;
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+
+.miaomiao-progress-text {
+  font-size: 12px;
+  color: var(--miaomiao-text-secondary);
+  margin: 2px 0 8px;
+}
+
+.miaomiao-missed {
+  background: #fef2f2;
+  border-radius: var(--miaomiao-radius-sm);
+  padding: 10px 14px;
+  margin: 8px 0;
+  text-align: left;
+  font-size: 13px;
+}
+
+.miaomiao-missed ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.miaomiao-wrong {
+  background: #fff7ed;
+  border-radius: var(--miaomiao-radius-sm);
+  padding: 10px 14px;
+  margin: 8px 0;
+  text-align: left;
+  font-size: 13px;
+}
+
+.miaomiao-wrong ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+/* ── 完成页 ───────────────────────────────────────────────── */
+.miaomiao-complete {
+  text-align: center;
+  padding: 8px 0 16px;
+}
+
+.miaomiao-complete-emoji {
+  font-size: 56px;
+  margin-bottom: 8px;
+  animation: miaomiao-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.miaomiao-complete h2 {
+  font-size: 20px;
+  margin: 4px 0;
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.miaomiao-complete-title {
+  font-size: 14px;
+  color: var(--miaomiao-text-secondary);
+  margin: 4px 0 12px;
+}
+
+.miaomiao-complete-stats {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin: 16px 0;
+}
+
+.miaomiao-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.miaomiao-stat-icon {
+  font-size: 24px;
+}
+
+.miaomiao-stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--miaomiao-text);
+}
+
+.miaomiao-stat-label {
+  font-size: 11px;
+  color: var(--miaomiao-text-secondary);
+}
+
+.miaomiao-complete-text {
+  font-size: 14px;
+  color: var(--miaomiao-text-secondary);
+  line-height: 1.6;
+  margin: 12px 0;
+}
+
+/* ── 响应式 ───────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .miaomiao-panel {
+    width: calc(100vw - 16px);
+    right: 8px;
+    bottom: 80px;
+    max-height: 60vh;
+    border-radius: 12px 12px 0 0;
+  }
+
+  .miaomiao-bubble {
+    bottom: 16px;
+    right: 12px;
+    width: 48px;
+    height: 48px;
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "ewa-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@mdx-js/loader": "^3.1.1",
+    "@mdx-js/react": "^3.1.1",
+    "@next/mdx": "15.5.19",
+    "@radix-ui/react-dialog": "^1.1.17",
+    "@radix-ui/react-slot": "^1.3.0",
+    "@types/mdx": "^2.0.14",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.21.0",
+    "motion": "^12.42.0",
+    "next": "15.5.19",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "remark-gfm": "^4.0.1",
+    "tailwind-merge": "^3.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "20.17.6",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "autoprefixer": "^10.4.19",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "15.5.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4",
+    "typescript": "^5.5.3"
+  }
+}

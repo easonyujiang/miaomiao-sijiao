@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "妙喵私教",
+  "version": "0.2.0",
+  "description": "把教学视频变成一对一私教 — 视频观看 + AI出题 + 判卷纠错",
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": [
+    "*://*.bilibili.com/*",
+    "*://*.douyin.com/*",
+    "http://localhost:8000/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.bilibili.com/video/*",
+        "*://*.douyin.com/video/*"
+      ],
+      "js": ["content_script.js"],
+      "css": ["content_style.css"],
+      "run_at": "document_end"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["assets/*"],
+      "matches": ["*://*.bilibili.com/*", "*://*.douyin.com/*"]
+    }
+  ],
+  "icons": {
+    "16": "assets/cat-16.png",
+    "48": "assets/cat-48.png",
+    "128": "assets/cat-128.png"
+  }
+}
