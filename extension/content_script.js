@@ -104,12 +104,26 @@
     return true;
   }
 
-  /** 生成唯一 session ID（页面内使用） */
-  function generateSessionId() {
+  /** 获取或创建持久化的 session ID（按视频存 chrome.storage） */
+  async function resolveSessionId() {
     const vid = state.videoId || "unknown";
+    const storageKey = `session_${vid}`;
+    try {
+      const data = await chrome.storage.local.get(storageKey);
+      if (data[storageKey]) {
+        console.log(`[妙喵] 恢复已有 session: ${data[storageKey]}`);
+        return data[storageKey];
+      }
+    } catch (e) { /* ignore */ }
+    // 新建并存储
     const ts = Date.now();
     const rand = Math.random().toString(36).slice(2, 8);
-    return `${vid}_${ts}_${rand}`;
+    const newId = `${vid}_${ts}_${rand}`;
+    try {
+      await chrome.storage.local.set({ [storageKey]: newId });
+    } catch (e) { /* ignore */ }
+    console.log(`[妙喵] 新 session: ${newId}`);
+    return newId;
   }
 
   // ── API 调用 ──────────────────────────────────────────────
@@ -238,9 +252,7 @@
     if (state.isPanelOpen) {
       panel.style.display = "flex";
       bubble.classList.add("miaomiao-bubble-active");
-      if (!state.lesson) {
-        renderLanding();
-      }
+      renderLanding();
     } else {
       panel.style.display = "none";
       bubble.classList.remove("miaomiao-bubble-active");
@@ -441,24 +453,42 @@
         <textarea id="miaomiao-answer-input" class="miaomiao-textarea"
           placeholder="在此输入你的答案…（不少于10个字）"
           rows="4"></textarea>
-        <p id="miaomiao-answer-hint" class="miaomiao-hint" style="display:none">
-          请输入至少10个字的回答
-        </p>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+          <p id="miaomiao-answer-hint" class="miaomiao-hint" style="display:none;margin:0">
+            ⚠️ 请输入至少10个字的回答
+          </p>
+          <span id="miaomiao-char-count" style="font-size:11px;color:#9ca3af;margin-left:auto">0 字</span>
+        </div>
         <button id="miaomiao-submit-btn" class="miaomiao-btn miaomiao-btn-primary">
           📝 提交答案
         </button>
       </div>`;
+
+    // 字数实时统计
+    const input = document.getElementById("miaomiao-answer-input");
+    const charCount = document.getElementById("miaomiao-char-count");
+    const hint = document.getElementById("miaomiao-answer-hint");
+    const submitBtn = document.getElementById("miaomiao-submit-btn");
+    input.addEventListener("input", () => {
+      const len = input.value.trim().length;
+      charCount.textContent = len + " 字";
+      if (len >= 10) {
+        hint.style.display = "none";
+        submitBtn.style.opacity = "1";
+      }
+    });
 
     if (step.hint_seek_ms) {
       document.getElementById("miaomiao-hint-btn").addEventListener("click", () => {
         seekTo(step.hint_seek_ms / 1000);
       });
     }
-    document.getElementById("miaomiao-submit-btn").addEventListener("click", async () => {
-      const input = document.getElementById("miaomiao-answer-input");
+    submitBtn.addEventListener("click", async () => {
       const answer = input.value.trim();
       if (answer.length < 10) {
-        document.getElementById("miaomiao-answer-hint").style.display = "block";
+        hint.style.display = "block";
+        submitBtn.style.opacity = "0.6";
+        input.focus();
         return;
       }
       await handleSubmitAnswer(step, answer);
@@ -698,7 +728,10 @@
         </button>
       </div>`;
 
-    document.getElementById("miaomiao-restart-btn").addEventListener("click", () => {
+    document.getElementById("miaomiao-restart-btn").addEventListener("click", async () => {
+      // 清除旧 session 存储
+      const storageKey = `session_${state.videoId}`;
+      try { await chrome.storage.local.remove(storageKey); } catch (e) { /* ignore */ }
       // Reset state
       state.stepResults = {};
       state.totalStars = 0;
@@ -706,7 +739,7 @@
       state.growth = 0;
       state.reviewQueue = [];
       state.currentStepIndex = 0;
-      state.sessionId = generateSessionId();
+      state.sessionId = await resolveSessionId();
       updateBubbleBadge();
       renderLanding();
     });
@@ -751,11 +784,6 @@
 
     state.videoId = detected.videoId;
     state.platform = detected.platform;
-    state.sessionId = generateSessionId();
-
-    console.log(
-      `[妙喵] 检测到视频: ${state.platform}/${state.videoId}`
-    );
 
     // 注入 UI
     injectUI();
@@ -767,14 +795,13 @@
     const backendOnline = await checkBackendHealth();
     if (!backendOnline) {
       console.warn("[妙喵] 后端未连接 (localhost:8000)");
-      // 气泡仍然显示，但标记后端离线
       state.backendOffline = true;
       const bubbleEl = document.getElementById("miaomiao-bubble");
       if (bubbleEl) {
         bubbleEl.style.opacity = "0.6";
         bubbleEl.title = "妙喵私教 — 后端未连接，请先启动 python run.py";
       }
-      return; // 不继续初始化课程
+      return;
     }
 
     state.backendOffline = false;
@@ -782,15 +809,15 @@
     // 等待播放器就绪
     await waitForPlayer();
 
+    // 持久化 session ID（跨页面刷新复用）
+    state.sessionId = await resolveSessionId();
+
     // 注册视频并尝试加载课程
     await registerVideo();
     const lesson = await loadLesson();
     if (lesson && !lesson.error) {
       state.lesson = lesson;
       console.log(`[妙喵] 课程已加载: ${lesson.title}, ${lesson.total_steps} 关`);
-      // 更新气泡状态
-      setCatState("idle");
-      updateBubbleBadge();
 
       // 恢复之前的进度
       const saved = await getStateAPI();
@@ -798,7 +825,17 @@
         state.totalStars = saved.gamification.total_stars || 0;
         state.fish = saved.gamification.fish || 0;
         state.growth = saved.gamification.growth || 0;
+        // 恢复步骤完成状态
+        if (saved.completed_steps) {
+          for (const stepId of saved.completed_steps) {
+            state.stepResults[stepId] = { passed: true };
+          }
+        }
+        console.log(`[妙喵] 进度已恢复: ${saved.completed_steps?.length || 0} 关已完成`);
       }
+
+      setCatState("idle");
+      updateBubbleBadge();
     }
 
     console.log("[妙喵] 初始化完成，气泡已就绪");

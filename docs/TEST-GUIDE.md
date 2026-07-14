@@ -1,169 +1,271 @@
-# 妙喵私教 · 运行与测试指南
+# 妙喵私教 · 手动验证指南
 
-## 1. 安装依赖
+> 从零搭建环境，以真实用户身份走完完整交互流程。
+
+---
+
+## 1. 环境搭建
 
 ```bash
 cd ewa
 
-# 首次创建虚拟环境
+# 虚拟环境
 python -m venv .venv
+.venv\Scripts\activate
 
-# 激活
-.venv\Scripts\activate        # Windows
-# source .venv/bin/activate   # macOS / Linux
-
-# 安装
+# 依赖
 pip install -e ".[dev]"
-```
 
-## 2. 配置
-
-```bash
+# 配置（用占位 Key 也能跑，自动跳过 LLM）
 cp .env.example .env
 ```
 
-不配置 LLM Key 也能跑，自动使用离线模式。
-
-配置任意一个 Key 可获得更好的 LLM 判卷体验：
-
-```bash
-MOONSHOT_API_KEY=sk-...     # 首选
-DEEPSEEK_API_KEY=sk-...     # 备选
-```
-
-## 3. 启动后端
+## 2. 启动后端
 
 ```bash
 python run.py
 ```
 
-看到 `妙喵私教 ready. DB: data/miaomiao.db` 即启动成功。
+看到 `妙喵私教 ready. DB: data/miaomiao.db` 即就绪。
 
-## 4. 验证 API
+另开终端验证：
 
 ```bash
-# 健康检查
 curl http://localhost:8000/health
 # → {"status":"ok","site":{"profiles":true},...}
-
-# 加载课程
-curl -s -X POST http://localhost:8000/api/lesson/load \
-  -H "Content-Type: application/json" \
-  -d '{"video_id":"BV1mJ4m147PG","platform":"bilibili"}' \
-  | python -c "import sys,json; d=json.load(sys.stdin); print(d['title'], d['total_steps'], 'steps')"
-# → 正当防卫的构成要件 — 罗翔刑法 5 steps
-
-# 提交第 1 关
-curl -s -X POST http://localhost:8000/api/lesson/quiz_submit \
-  -H "Content-Type: application/json" \
-  -d '{
-    "session_id":"test",
-    "lesson_id":"lesson_luoxiang_001",
-    "step_id":"step_1",
-    "answer":"不成立，这是假想防卫的情形，客观上没有现实的不法侵害，属于事实认识错误",
-    "current_time_sec":60
-  }' | python -c "import sys,json; d=json.load(sys.stdin); print('PASS' if d['passed'] else 'FAIL', 'stars', d['stars_earned'])"
-# → PASS stars 3
-
-# 查看状态
-curl -s http://localhost:8000/api/lesson/state/test/lesson_luoxiang_001 \
-  | python -c "import sys,json; d=json.load(sys.stdin); print('stars', d['gamification']['total_stars'])"
-# → stars 3
 ```
 
-## 5. 一键跑通 5 关
-
-```bash
-python -c "
-import json
-from ewa.api.main import create_app
-from fastapi.testclient import TestClient
-
-with open('data/miaomiao/lessons/lesson_luoxiang_001.json', encoding='utf-8') as f:
-    lesson = json.load(f)
-
-answers = {
-    'step_1': '不成立，这是假想防卫的情形，客观上没有现实的不法侵害，属于事实认识错误',
-    'step_2': '现场追回属于正当防卫，侵害仍在进行。第二天打伤不成立，属于事后报复。',
-    'step_3': '反击侵害人是防卫行为，是合法的。误伤旁边的路人不是故意的，可以按紧急情况处理。',
-    'step_4': '这是挑拨防卫，故意激怒对方然后反击，不成立防卫。互殴中一方停止后可成立防卫。',
-    'step_5': '属于特殊防卫，针对严重危及人身安全的暴力犯罪，适用无限防卫权。',
-}
-
-app = create_app()
-with TestClient(app) as c:
-    for step in lesson['steps']:
-        r = c.post('/api/lesson/quiz_submit', json={
-            'session_id':'full_run',
-            'lesson_id':'lesson_luoxiang_001',
-            'step_id':step['id'],
-            'answer':answers[step['id']],
-            'current_time_sec':step['start_ms']//1000,
-        })
-        d = r.json()
-        print(f'{\"PASS\" if d[\"passed\"] else \"FAIL\"} {step[\"id\"]} | score={d[\"score\"]} stars={d[\"stars_earned\"]}')
-
-    state = c.get('/api/lesson/state/full_run/lesson_luoxiang_001').json()
-    g = state['gamification']
-    print(f'DONE | stars={g[\"total_stars\"]} fish={g[\"fish\"]} growth={g[\"growth\"]}')
-"
-```
-
-预期输出：
-
-```
-PASS step_1 | score=0.8 stars=3
-PASS step_2 | score=1.0 stars=3
-PASS step_3 | score=0.75 stars=3
-PASS step_4 | score=0.8 stars=3
-PASS step_5 | score=0.667 stars=3
-DONE | stars=15 fish=15 growth=50
-```
-
-## 6. 加载 Chrome 插件
+## 3. 加载 Chrome 插件
 
 1. Chrome → `chrome://extensions/`
-2. 开启右上角「开发者模式」
+2. 右上角开启「开发者模式」
 3. 「加载已解压的扩展程序」→ 选择 `extension/` 目录
-4. 打开 B站视频 `https://www.bilibili.com/video/BV1mJ4m147PG`
-5. 右下角出现 🐱 气泡 → 点击 → 开始学习
+4. 确认插件卡片出现「妙喵私教」
 
-> 如果气泡半透明：后端未连接，确认 `python run.py` 运行中。
-> 如果气泡不出现：F12 → Console → 过滤 `[妙喵]` 查看日志。
+## 4. 以真实用户身份走完整流程
 
-## 7. 运行全部测试
+### 4.1 打开视频
 
-```bash
-# 所有测试 (23 cases)
-pytest tests/ -v
+浏览器打开：`https://www.bilibili.com/video/BV1mJ4m147PG`
 
-# 只跑私教流程
-pytest tests/test_lesson_e2e.py -v
+预期：
+- 页面右下角出现 🐱 气泡（不透明 = 后端已连接）
+- F12 → Console → 过滤 `[妙喵]`，应看到：
+  ```
+  [妙喵] 检测到视频: bilibili/BV1mJ4m147PG
+  [妙喵] 课程已加载: 正当防卫的构成要件 — 罗翔刑法, 5 关
+  [妙喵] 初始化完成，气泡已就绪
+  ```
 
-# 只跑网站 API
-pytest tests/test_site_api.py -v
+> **故障排查**
+>
+> | 现象 | 检查 |
+> |------|------|
+> | 气泡不出现 | 确认在 B站视频页（非首页/搜索结果页） |
+> | 气泡半透明 | `python run.py` 是否在运行？`curl localhost:8000/health` 是否通？ |
+> | Console 无 `[妙喵]` 日志 | 刷新页面，等视频开始播放 |
+> | 气泡出现但无课程 | 确认视频是 `BV1mJ4m147PG`（已收录） |
 
-# 代码检查
-ruff check .
+### 4.2 进入课程
+
+点击右下角 🐱 气泡 → 面板从右下角弹出。
+
+预期看到：
+
+```
+🎓
+正当防卫的构成要件 — 罗翔刑法
+罗翔说刑法
+共 5 关 · 每关包含案例练习
+[🐱 开始学习]
 ```
 
-## 8. 手动评分测试
+动画：猫咪 emoji 上下浮动。
 
-```bash
-python -c "
-from ewa.api.lesson import score_answer
+### 4.3 第 1 关：看片段 → 答题
 
-answer_key = ['不构成正当防卫', '不存在不法侵害', '假想防卫', '没有现实的不法侵害', '事实认识错误']
-wrong_key = ['构成正当防卫', '防卫过当', '紧急避险']
+点击「🐱 开始学习」。
 
-tests = [
-    ('不成立，这是假想防卫，客观上没有现实的不法侵害，属于事实认识错误', '正确回答'),
-    ('构成正当防卫，是防卫过当', '错误回答'),
-    ('', '空回答'),
-    ('假想防卫', '太短'),
-]
-for a, desc in tests:
-    r = score_answer(a, answer_key, wrong_key)
-    print(f'{desc}: score={r[\"score\"]} matched={r[\"matched\"]} wrong={r[\"wrong_hits\"]}')
-"
+预期看到第 1 关界面：
+
 ```
+[第 1 关] 起因条件：必须存在不法侵害
+
+📖 引导文案：观看这段视频，理解正当防卫的第一个要件...
+
+💡 核心要点：不法侵害是正当防卫的起因条件...
+
+⚠️ 常见误区：
+  · 假想防卫不构成正当防卫
+  · 对合法行为不能进行正当防卫
+  · 不法侵害必须是人的行为
+
+[▶ 跳转到讲解片段 (0:30)]
+[✅ 我看完了，开始答题]
+```
+
+点击「跳转到讲解片段」→ B站播放器应跳到 30 秒位置。
+
+### 4.4 提交答案
+
+看完片段后，点击「✅ 我看完了，开始答题」。
+
+预期看到题目：
+
+```
+张三深夜回家，在小区绿化带看到一个人影蹲着，以为是埋伏的歹徒，
+先用棍子将对方打伤。事后发现那是一位正在修下水道的物业工人。
+张三的行为是否构成正当防卫？请说明理由。
+
+[文本输入框]
+0 字
+[📝 提交答案]
+```
+
+**测试 A：正确答案（一次通过）**
+
+输入答案（至少 10 字）：
+```
+不构成正当防卫。客观上没有现实的不法侵害，这是假想防卫，应按事实认识错误处理。
+```
+
+字数统计应显示 > 10 字。点击「📝 提交答案」。
+
+预期：
+1. 界面短暂显示「猫猫正在认真判卷…」+ 🔍 旋转
+2. 随即显示通过结果：
+
+```
+🌟
+完美通过！
+第一次就答对了 🌟
+核心要点你都掌握了：不构成正当防卫。
+小鱼干 +3 🐟
+
+⭐ 3 星  ✅ 3/2 要点
+[进度条 ████████░░░░░░░░░░]
+进度 1/5
+
+[下一关：时间条件：不法侵害正在进行 →]
+```
+
+同时 B站播放器自动跳转到第 2 关起始时间（约 3:00）。
+
+验证：
+- 猫咪状态变为 🐱🎉「妙喵为你开心」
+- 气泡上出现 `1` 标记（已完成 1 关）
+
+**测试 B：错误答案（重试流程）**
+
+回到第 1 关，故意输入不完整答案：
+```
+构成正当防卫吧
+```
+
+预期：
+1. 字数 < 10 → 出现 `⚠️ 请输入至少10个字的回答`，按钮变灰，无法提交
+2. 补足字数后再提交 → 未通过结果：
+
+```
+📝
+还差一点点~
+猫猫看了你的答案，差一点点~
+
+⚠️ 注意：构成正当防卫 —— 这个理解有误，要回去看看。
+
+漏掉了关键点：
+  · 不构成正当防卫
+  · 不存在不法侵害
+  · 假想防卫
+
+💡 记住：不法侵害是正当防卫的起因条件...
+
+⏪ 猫猫帮你找到了对应片段，点下面跳回去再看一遍 👇
+
+[⏪ 跳转到讲解片段 (1:00)]
+[🔄 重新作答]
+```
+
+点击「跳转到讲解片段」→ 播放器跳到 1:00。看完后点击「重新作答」→ 输入改进后的答案 → 这次通过。
+
+### 4.5 重复第 2~5 关
+
+继续点击「下一关」，走完 5 关。
+
+> 每关对应 B站视频的不同时间片段。想验证跳转行为的话，注意观察播放器是否跳到对应时间。
+
+### 4.6 课程完成
+
+5 关全部通过后的界面：
+
+```
+🏆
+课程完成！
+正当防卫的构成要件 — 罗翔刑法
+
+⭐ 15 / 15        🐟 15           📈 50
+星星              小鱼干           成长值
+
+你完成了全部 5 关练习，通过了 5 关！
+太厉害了，全部关卡都通过了！🌟
+
+[🔄 重新学习]
+```
+
+### 4.7 进度持久化验证
+
+关闭 B站视频页 → 重新打开 `BV1mJ4m147PG` → 点击气泡。
+
+预期：
+- 气泡上显示 `✓`（全部完成）
+- 面板显示「继续学习」而非「开始学习」
+- 也可以点「重新学习」重置进度
+
+---
+
+## 5. 博主网站验证
+
+浏览器打开：`http://localhost:3000`（需先 `cd frontend && npm run dev`）
+
+或直接访问后端静态托管：`http://localhost:8000`
+
+### 5.1 猫咪聊天
+
+右下角 🐱 浮动按钮 → 点击 → 聊天窗弹出。
+
+试聊：
+
+| 输入 | 预期回复 |
+|------|---------|
+| 「你在做什么？」 | 介绍博主钟笑咪和妙喵项目 |
+| 「最近在做什么？」 | 从日记取最近条目作答 |
+| 「有什么项目？」 | 列出已确认项目 |
+| 「怎么联系你？」 | 返回邮箱和 GitHub |
+
+验证：
+- 猫咪动画（上下浮动）
+- 访客气泡（右对齐，深色）vs 猫咪气泡（左对齐，浅色）
+- 快捷问题按钮（输入框上方 3 个 pill）
+- 回复中有操作按钮时（如「跳到 0:09」），点击应跳转到 /projects 页
+
+---
+
+## 6. 验证清单
+
+| # | 验证项 | 方式 |
+|---|--------|------|
+| 1 | 后端启动正常 | `curl localhost:8000/health` |
+| 2 | 插件检测视频 | B站视频页右下角出现气泡 |
+| 3 | 课程加载 | 点击气泡 → 看到课程信息 |
+| 4 | 视频跳转 | 点击「跳转到讲解片段」→ 播放器跳转 |
+| 5 | 答题通过 | 输入匹配答案 → 显示 🌟 + 猫咪反馈 + 下一关 |
+| 6 | 答题不通过 | 输入错误答案 → 显示纠错 + 回看按钮 |
+| 7 | 字数限制 | 输入 < 10 字 → 提示 + 按钮置灰 |
+| 8 | 重试得星递减 | 第 1 次错 → 第 2 次对 → 得 2 星（非 3 星） |
+| 9 | 自动推进 | 通过后自动跳转下一关片段 |
+| 10 | 进度标记 | 气泡 badge 显示已完成关数 |
+| 11 | 课程完成 | 5 关全过后显示 🏆 + 星星/鱼干/成长值 |
+| 12 | 进度持久化 | 关闭页面 → 重开 → 进度仍在 |
+| 13 | 重新学习 | 完成页点「重新学习」→ 全部重置 |
+| 14 | 网站聊天 | 打开前端 → 右下角猫咪聊天 |
+| 15 | 后端离线兜底 | 关掉 `python run.py` → 刷新 → 气泡半透明 + 提示启动后端 |

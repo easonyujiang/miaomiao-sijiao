@@ -146,6 +146,7 @@ async def quiz_submit(req: QuizSubmitRequest) -> dict[str, Any]:
         min_correct=min_correct,
         question=question,
         key_point=step.get("key_point", ""),
+        domain=lesson.get("domain", "通用"),
     )
 
     passed = len(result["matched"]) >= min_correct and len(result["wrong_hits"]) == 0

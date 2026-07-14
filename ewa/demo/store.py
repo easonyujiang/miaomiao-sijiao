@@ -178,8 +178,8 @@ class LessonStore:
                         json.dumps(review_queue or [], ensure_ascii=False),
                     ),
                 )
-        except sqlite3.OperationalError:
-            pass  # 持久化失败不阻塞答题流程，但记录可追踪
+        except sqlite3.OperationalError as e:
+            logger.warning("保存 session 失败（DB 操作错误，可能目录不存在或磁盘满）: %s", e)
         except Exception:
             logger.exception("保存 session 时发生未预期错误")
 

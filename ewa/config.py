@@ -9,8 +9,15 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+# 加载 .env 文件（必须在所有 os.getenv 之前调用）
+from dotenv import load_dotenv
+_project_root = Path(__file__).resolve().parent.parent
+_dotenv_path = _project_root / ".env"
+if _dotenv_path.exists():
+    load_dotenv(_dotenv_path)
+
 # ── 项目根目录 ──────────────────────────────────────────
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = _project_root
 
 # ── 数据目录 ────────────────────────────────────────────
 DATA_DIR = Path(os.getenv("EWA_DATA_DIR", PROJECT_ROOT / "data"))

@@ -14,6 +14,21 @@ from typing import Any
 
 from ewa.config import MOONSHOT_API_KEY, DEEPSEEK_API_KEY
 
+# 最小 API Key 长度（过滤 sk-... 等占位符）
+_MIN_KEY_LENGTH = 10
+
+
+def _is_valid_key(key: str) -> bool:
+    """校验 API Key 是否有效（非空且不是占位符）。"""
+    if not key:
+        return False
+    if len(key) < _MIN_KEY_LENGTH:
+        return False
+    # 过滤明显占位符: "sk-..." 等
+    if key.endswith("...") and len(key) <= 8:
+        return False
+    return True
+
 
 class LLMClient:
     """统一的 LLM 调用客户端。
@@ -45,8 +60,8 @@ class LLMClient:
 
     @property
     def is_available(self) -> bool:
-        """是否有可用的 LLM provider。"""
-        return bool(self._kimi_key or self._deepseek_key)
+        """是否有可用的 LLM provider（API Key 有效）。"""
+        return _is_valid_key(self._kimi_key) or _is_valid_key(self._deepseek_key)
 
     async def chat(
         self,
@@ -54,7 +69,7 @@ class LLMClient:
         user: str,
         max_tokens: int = 600,
         temperature: float = 0.1,
-        timeout: int = 20,
+        timeout: int | None = None,
     ) -> str | None:
         """发送聊天请求，返回文本回复。
 
@@ -63,14 +78,14 @@ class LLMClient:
             user: 用户消息
             max_tokens: 最大输出 token 数
             temperature: 生成温度
-            timeout: 请求超时秒数
+            timeout: 请求总超时秒数（None=使用默认 connect:5s read:15s）
 
         Returns:
             LLM 返回的文本内容，或 None（所有 provider 不可用）
         """
         for provider in self._PROVIDERS:
             api_key = self._kimi_key if provider["name"] == "kimi" else self._deepseek_key
-            if not api_key:
+            if not _is_valid_key(api_key):
                 continue
 
             result = await self._call(
@@ -125,13 +140,29 @@ class LLMClient:
         user: str,
         max_tokens: int,
         temperature: float,
-        timeout: int,
+        timeout: int | None,
     ) -> str | None:
-        """执行实际的 HTTP 调用。"""
+        """执行实际的 HTTP 调用。
+
+        timeout=None 时使用细分超时：connect=5s, read=15s, write=5s。
+        传入 int 时覆盖全部超时（向后兼容）。
+        """
         try:
             import httpx
 
-            async with httpx.AsyncClient(timeout=timeout) as client:
+            if timeout is not None:
+                timeout_config = httpx.Timeout(
+                    connect=min(timeout, 10.0),
+                    read=float(timeout),
+                    write=min(timeout, 10.0),
+                    pool=5.0,
+                )
+            else:
+                timeout_config = httpx.Timeout(
+                    connect=5.0, read=15.0, write=5.0, pool=5.0,
+                )
+
+            async with httpx.AsyncClient(timeout=timeout_config) as client:
                 res = await client.post(
                     api_url,
                     headers={"Authorization": f"Bearer {api_key}"},

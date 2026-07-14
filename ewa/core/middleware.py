@@ -102,8 +102,17 @@ class RateLimiter:
         return max(0, self._requests_per_minute - len(valid))
 
 
-# 全局限流器实例
-rate_limiter = RateLimiter(requests_per_minute=60)
+# 全局限流器实例（按 endpoint 分别维护窗口）
+rate_limiters: dict[str, RateLimiter] = {
+    "llm": RateLimiter(requests_per_minute=20),    # LLM 调用端点
+    "default": RateLimiter(requests_per_minute=60),  # 其他 API
+}
+
+
+def reset_rate_limiters() -> None:
+    """重置所有限流器窗口（测试/调试用）。"""
+    for limiter in rate_limiters.values():
+        limiter._window.clear()
 
 
 def create_rate_limit_middleware():
@@ -126,9 +135,9 @@ def create_rate_limit_middleware():
 
             # 对可能调用 LLM 的端点使用更严格的限流
             if path in ("/api/lesson/quiz_submit", "/api/ext/chat"):
-                limit = 20
+                limiter_key = "llm"
             else:
-                limit = 60
+                limiter_key = "default"
 
             # 使用客户端 IP 作为限流 key
             forwarded = request.headers.get("X-Forwarded-For")
@@ -137,15 +146,16 @@ def create_rate_limit_middleware():
             )
             key = f"{client_ip}:{path}"
 
-            # 临时覆盖限流器配置
-            limiter = RateLimiter(requests_per_minute=limit)
+            # 复用全局实例（不再每次 new）
+            limiter = rate_limiters[limiter_key]
             if not limiter.is_allowed(key, now):
+                retry_after = 60
                 return JSONResponse(
                     status_code=429,
                     content={
                         "error": "rate_limited",
                         "message": "请求过于频繁，请稍后再试",
-                        "retry_after_sec": 60,
+                        "retry_after_sec": retry_after,
                     },
                 )
 
