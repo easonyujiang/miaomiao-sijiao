@@ -6,7 +6,7 @@ import { DiaryCard } from '@/components/diary-card'
 
 export const metadata: Metadata = {
   title: 'Diary · 日记',
-  description: '钟笑咪每天在做什么——日记时间线，让数字名片成为持续在更新的人。',
+  description: '博主日记时间线——让数字名片成为持续在更新的人。',
 }
 
 export default async function DiaryPage() {

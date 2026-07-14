@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>妙喵私教 · 管理后台</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+--bg:#f8f9fa;--card:#fff;--border:#dee2e6;--text:#212529;--muted:#6c757d;
+--primary:#f59e0b;--primary-hover:#d97706;--danger:#ef4444;--success:#10b981;
+--sidebar-w:220px;--topbar-h:52px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
+#login-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999}
+#login-overlay.hidden{display:none}
+.login-box{background:var(--card);border-radius:12px;padding:32px;width:380px;box-shadow:0 8px 32px rgba(0,0,0,.15)}
+.login-box h2{font-size:20px;margin-bottom:16px}
+.login-box input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:12px}
+.login-box button{width:100%;padding:10px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer}
+.login-box button:hover{background:var(--primary-hover)}
+.login-box .hint{font-size:12px;color:var(--muted);margin-top:8px}
+#sidebar{width:var(--sidebar-w);background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;overflow-y:auto;z-index:100}
+.sidebar-header{padding:16px;border-bottom:1px solid var(--border);font-weight:700;font-size:16px;color:var(--primary)}
+.sidebar-group{padding:8px 0}
+.sidebar-group-title{padding:8px 16px;font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:600;letter-spacing:.5px}
+.sidebar-item{padding:8px 16px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px;transition:background .15s}
+.sidebar-item:hover{background:var(--bg)}
+.sidebar-item.active{background:#fef3c7;color:#92400e;font-weight:600}
+.sidebar-item .badge{font-size:10px;background:var(--border);color:var(--muted);padding:1px 6px;border-radius:8px;margin-left:auto}
+#main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column}
+#topbar{height:var(--topbar-h);background:var(--card);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:16px;position:sticky;top:0;z-index:50}
+#topbar .title{font-weight:600;font-size:15px}
+#topbar input[type=search]{padding:6px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;width:220px}
+#topbar button{padding:6px 14px;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer}
+.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:var(--primary-hover)}
+.btn-danger{background:var(--danger);color:#fff}.btn-outline{background:transparent;border:1px solid var(--border)}
+#content{padding:20px;flex:1;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:13px;background:var(--card);border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+th{background:#f8f9fa;padding:10px 12px;text-align:left;font-weight:600;border-bottom:2px solid var(--border);white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid var(--border);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+tr:hover{background:#fffbeb}
+td.actions{white-space:nowrap;gap:6px}
+td.actions button{font-size:11px;padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer}
+td.actions button:hover{background:var(--bg)}
+td.actions .del:hover{background:#fee2e2;border-color:var(--danger);color:var(--danger)}
+.pagination{display:flex;align-items:center;gap:12px;margin-top:16px;font-size:13px;color:var(--muted)}
+.pagination button{padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:var(--card);cursor:pointer}
+.pagination button:disabled{opacity:.4;cursor:default}
+#modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:200}
+#modal-overlay.show{display:flex}
+.modal{background:var(--card);border-radius:12px;width:560px;max-height:80vh;overflow-y:auto;box-shadow:0 12px 48px rgba(0,0,0,.2)}
+.modal-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.modal-header h3{font-size:16px}
+.modal-body{padding:20px}
+.modal-body label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px;margin-top:12px}
+.modal-body input,.modal-body textarea,.modal-body select{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit}
+.modal-body textarea{min-height:80px;resize:vertical}
+.modal-footer{padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
+.stat-card{background:var(--card);padding:14px;border-radius:8px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.stat-card .num{font-size:28px;font-weight:700;color:var(--primary)}
+.stat-card .lbl{font-size:11px;color:var(--muted);margin-top:4px}
+.log-row{font-size:12px;padding:8px 12px;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:flex-start}
+.log-row .lv{padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;min-width:52px;text-align:center}
+.lv-INFO{background:#dbeafe;color:#1e40af}.lv-WARNING{background:#fef3c7;color:#92400e}.lv-ERROR{background:#fee2e2;color:#991b1b}
+</style>
+</head>
+<body>
+
+<div id="login-overlay">
+<div class="login-box">
+<h2>🐱 管理后台登录</h2>
+<input id="token-input" type="password" placeholder="输入 ADMIN_TOKEN">
+<button onclick="login()">登录</button>
+<p class="hint">默认为 admin-secret-change-me（请在 .env 中修改 ADMIN_TOKEN）</p>
+</div>
+</div>
+
+<nav id="sidebar">
+<div class="sidebar-header">🐱 妙喵管理</div>
+<div id="sidebar-menu"></div>
+</nav>
+
+<div id="main">
+<div id="topbar">
+<span class="title" id="page-title">仪表盘</span>
+<div style="flex:1"></div>
+<input type="search" id="search-input" placeholder="搜索..." oninput="loadData()">
+<button class="btn-primary" id="btn-create" onclick="openCreate()">+ 新增</button>
+</div>
+<div id="content"></div>
+</div>
+
+<div id="modal-overlay">
+<div class="modal">
+<div class="modal-header"><h3 id="modal-title">编辑</h3><button onclick="closeModal()" style="background:none;border:none;font-size:20px;cursor:pointer">&times;</button></div>
+<div class="modal-body" id="modal-body"></div>
+<div class="modal-footer">
+<button class="btn-outline" onclick="closeModal()">取消</button>
+<button class="btn-primary" id="modal-save" onclick="saveRow()">保存</button>
+</div>
+</div>
+</div>
+
+<script>
+const API='/api/admin';
+let token=localStorage.getItem('admin_token')||'';
+let currentTable='';
+let currentPage=0,limit=20,schema=[],modalRow=null,modalTable='';
+
+if(token)tryAuth();
+
+function $(id){return document.getElementById(id)}
+
+async function tryAuth(){
+  const r=await fetch(API+'/stats',{headers:{Authorization:'Bearer '+token}});
+  if(r.ok){$('login-overlay').classList.add('hidden');init()}
+}
+
+async function login(){
+  token=$('token-input').value.trim();
+  localStorage.setItem('admin_token',token);
+  tryAuth();
+}
+
+async function init(){
+  const r=await fetch(API+'/schema',{headers:{Authorization:'Bearer '+token}});
+  schema=await r.json();
+  buildSidebar();
+  showDashboard();
+}
+
+function buildSidebar(){
+  const groups={
+    '内容管理':['profiles','pet_personas','projects','faqs','diary_entries','creator_style_examples','content_chunks'],
+    '视频与来源':['videos','video_segments','video_relations','knowledge_sources','profile_links'],
+    '用户数据':['visitors','visitor_sessions','conversation_messages','visitor_events','visitor_memories','viewer_video_progress','agent_actions'],
+    '课程':['lesson_sessions','lesson_attempts'],
+  };
+  let html=`<div class="sidebar-item active" onclick="showDashboard()">📊 仪表盘</div>
+<div class="sidebar-item" onclick="showImport()">📥 导入视频</div>
+<div class="sidebar-item" onclick="showLogs()">📋 审计日志</div>`;
+  for(const[g,tables]of Object.entries(groups)){
+    html+=`<div class="sidebar-group"><div class="sidebar-group-title">${g}</div>`;
+    for(const t of tables){
+      const s=schema.find(x=>x.name===t);
+      html+=`<div class="sidebar-item" onclick="showTable('${t}')">${s?tablesLabel(t):t} <span class="badge">${s&&s.writable?'读写':'只读'}</span></div>`;
+    }
+    html+='</div>';
+  }
+  $('sidebar-menu').innerHTML=html;
+}
+
+function tablesLabel(t){const m={profiles:'博主信息',pet_personas:'宠物人设',projects:'项目',faqs:'FAQ问答',diary_entries:'日记',videos:'视频',video_segments:'视频片段',knowledge_sources:'知识来源',lesson_sessions:'学习会话',lesson_attempts:'答题记录',conversation_messages:'聊天记录'};return m[t]||t}
+
+async function showDashboard(){
+  currentTable='';$('page-title').textContent='仪表盘';
+  $('btn-create').style.display='none';$('search-input').style.display='none';
+  const r=await fetch(API+'/stats',{headers:{Authorization:'Bearer '+token}});
+  const d=await r.json();
+  let html='<div class="stats-grid">';
+  for(const[t,c]of Object.entries(d.tables)){
+    if(c>=0)html+=`<div class="stat-card" onclick="showTable('${t}')" style="cursor:pointer"><div class="num">${c}</div><div class="lbl">${tablesLabel(t)||t}</div></div>`;
+  }
+  html+='</div>';
+  $('content').innerHTML=html;
+}
+
+async function showTable(table){
+  currentTable=table;currentPage=0;
+  $('page-title').textContent=tablesLabel(table)||table;
+  const s=schema.find(x=>x.name===table);
+  $('btn-create').style.display=s&&s.writable?'':'none';
+  $('search-input').style.display='';
+  $('search-input').value='';
+  // 高亮侧栏
+  document.querySelectorAll('.sidebar-item').forEach(el=>el.classList.remove('active'));
+  const items=document.querySelectorAll('.sidebar-item');
+  for(const el of items){if(el.textContent.includes(tablesLabel(table)||table)){el.classList.add('active');break}}
+  loadData();
+}
+
+async function loadData(){
+  if(!currentTable)return;
+  const search=$('search-input')?.value||'';
+  const url=`${API}/${currentTable}?limit=${limit}&offset=${currentPage*limit}&search=${encodeURIComponent(search)}`;
+  const r=await fetch(url,{headers:{Authorization:'Bearer '+token}});
+  const d=await r.json();
+  renderTable(d.items,d.total);
+}
+
+function renderTable(rows,total){
+  if(!rows.length){$('content').innerHTML='<p style="color:var(--muted);margin-top:20px">暂无数据</p>';return}
+  const s=schema.find(x=>x.name===currentTable);
+  const cols=s?s.columns.filter(c=>!c.name.endsWith('_json')&&c.name!=='body'&&c.name!=='summary'&&c.name!=='content'&&c.name!=='transcript'):[];
+  const displayCols=cols.slice(0,6);
+  let html=`<table><thead><tr>${displayCols.map(c=>`<th>${c.name}</th>`).join('')}<th>操作</th></tr></thead><tbody>`;
+  for(const row of rows){
+    html+='<tr>';
+    for(const c of displayCols){
+      let v=row[c.name];
+      if(v===null||v===undefined)v='-';
+      else if(typeof v==='number')v=v.toString();
+      else if(typeof v!=='string')v=JSON.stringify(v).substring(0,60);
+      if(v.length>60)v=v.substring(0,60)+'…';
+      html+=`<td title="${escapeAttr(String(row[c.name]||''))}">${escapeHtml(v)}</td>`;
+    }
+    html+=`<td class="actions">
+      <button onclick="openEdit('${currentTable}','${escapeAttr(row.id||'')}')">编辑</button>
+      <button class="del" onclick="deleteRow('${currentTable}','${escapeAttr(row.id||'')}')">删</button>
+    </td></tr>`;
+  }
+  html+='</tbody></table>';
+  html+=`<div class="pagination">
+    <button ${currentPage===0?'disabled':''} onclick="currentPage--;loadData()">上一页</button>
+    <span>第 ${currentPage+1} 页 · 共 ${Math.ceil(total/limit)} 页 (${total} 条)</span>
+    <button ${(currentPage+1)*limit>=total?'disabled':''} onclick="currentPage++;loadData()">下一页</button>
+  </div>`;
+  $('content').innerHTML=html;
+}
+
+async function openCreate(){
+  modalTable=currentTable;modalRow=null;
+  $('modal-title').textContent='新增: '+tablesLabel(currentTable);
+  const s=schema.find(x=>x.name===currentTable);
+  if(!s)return;
+  let html='';
+  for(const c of s.columns){
+    if(c.pk||c.name.endsWith('_at'))continue;
+    const isText=c.name.endsWith('_json')||c.name==='body'||c.name==='summary'||c.name==='content'||c.name==='answer'||c.name==='description'||c.name==='transcript';
+    html+=`<label>${c.name} ${c.nullable?'':'(必填)'}</label>`;
+    if(isText)html+=`<textarea name="${c.name}"></textarea>`;
+    else html+=`<input name="${c.name}" ${!c.nullable?'required':''}>`;
+  }
+  $('modal-body').innerHTML=html;
+  $('modal-overlay').classList.add('show');
+}
+
+async function openEdit(table,id){
+  modalTable=table;modalRow=id;
+  $('modal-title').textContent='编辑: '+tablesLabel(table)+' / '+id;
+  const r=await fetch(`${API}/${table}/${id}`,{headers:{Authorization:'Bearer '+token}});
+  const row=await r.json();
+  const s=schema.find(x=>x.name===table);
+  if(!s)return;
+  let html='';
+  for(const c of s.columns){
+    if(c.pk&&c.name==='id'){html+=`<label>id (只读)</label><input value="${escapeAttr(row[c.name]||'')}" disabled>`;continue}
+    if(c.name.endsWith('_at'))continue;
+    const isText=c.name.endsWith('_json')||c.name==='body'||c.name==='summary'||c.name==='content'||c.name==='answer'||c.name==='description'||c.name==='transcript';
+    let v=row[c.name];
+    if(v===null||v===undefined)v='';
+    else if(typeof v==='object')v=JSON.stringify(v,null,2);
+    else v=String(v);
+    html+=`<label>${c.name}</label>`;
+    if(isText)html+=`<textarea name="${c.name}">${escapeHtml(v)}</textarea>`;
+    else html+=`<input name="${c.name}" value="${escapeAttr(v)}">`;
+  }
+  $('modal-body').innerHTML=html;
+  $('modal-overlay').classList.add('show');
+}
+
+async function saveRow(){
+  const data={};
+  $('modal-body').querySelectorAll('input,textarea').forEach(el=>{
+    if(el.disabled)return;
+    let v=el.value;
+    const s=schema.find(x=>x.name===modalTable);
+    const col=s?s.columns.find(c=>c.name===el.name):null;
+    if(col&&(col.name.endsWith('_json')||col.name==='tags')){
+      try{v=JSON.parse(v)}catch(e){}
+    }
+    data[el.name]=v;
+  });
+  let r;
+  if(modalRow){
+    r=await fetch(`${API}/${modalTable}/${modalRow}`,{method:'PUT',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify(data)});
+  }else{
+    r=await fetch(`${API}/${modalTable}`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify(data)});
+  }
+  if(r.ok){closeModal();loadData()}else{alert('保存失败: '+(await r.json()).detail)}
+}
+
+async function deleteRow(table,id){
+  if(!confirm('确认删除 '+table+'/'+id+' ?'))return;
+  const r=await fetch(`${API}/${table}/${id}`,{method:'DELETE',headers:{Authorization:'Bearer '+token}});
+  if(r.ok)loadData();else alert('删除失败');
+}
+
+async function showLogs(){
+  currentTable='';$('page-title').textContent='审计日志';
+  $('btn-create').style.display='none';$('search-input').style.display='none';
+  const r=await fetch(API+'/logs/list?limit=100',{headers:{Authorization:'Bearer '+token}});
+  const d=await r.json();
+  let html='';
+  for(const log of d.items){
+    html+=`<div class="log-row">
+      <span class="lv lv-${log.level}">${log.level}</span>
+      <span style="color:var(--muted);min-width:80px">${log.module}</span>
+      <span style="min-width:70px">${log.action}</span>
+      <span>${escapeHtml(log.table_name||'')} ${escapeHtml(log.record_id||'')}</span>
+      <span style="flex:1;color:var(--muted)">${escapeHtml(log.detail||'')}</span>
+      <span style="color:var(--muted);font-size:11px;min-width:100px;text-align:right">${log.timestamp||''}</span>
+    </div>`;
+  }
+  $('content').innerHTML=html||'<p style="color:var(--muted);margin-top:20px">暂无日志</p>';
+}
+
+function closeModal(){$('modal-overlay').classList.remove('show')}
+function escapeHtml(s){const d=document.createElement('div');d.textContent=String(s);return d.innerHTML}
+function escapeAttr(s){return String(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
+
+// ── 视频导入 ──────────────────────────────────────────────
+let importSegments=[],importLessonSteps=[];
+
+function showImport(){
+  currentTable='';$('page-title').textContent='📥 导入视频';
+  $('btn-create').style.display='none';$('search-input').style.display='none';
+  document.querySelectorAll('.sidebar-item').forEach(el=>el.classList.remove('active'));
+  importSegments=[];importLessonSteps=[];
+  $('content').innerHTML=`
+    <div style="max-width:700px">
+      <h3 style="margin-bottom:16px">视频基本信息</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><label style="font-size:12px;font-weight:600;color:var(--muted)">视频 ID *</label><input id="imp-vid" placeholder="BVxxxxx"></div>
+        <div><label style="font-size:12px;font-weight:600;color:var(--muted)">平台</label><select id="imp-platform"><option>bilibili</option><option>douyin</option><option>local</option></select></div>
+        <div style="grid-column:span 2"><label style="font-size:12px;font-weight:600;color:var(--muted)">标题 *</label><input id="imp-title" placeholder="视频标题"></div>
+        <div style="grid-column:span 2"><label style="font-size:12px;font-weight:600;color:var(--muted)">描述</label><input id="imp-desc" placeholder="简短描述"></div>
+        <div><label style="font-size:12px;font-weight:600;color:var(--muted)">时长 (毫秒)</label><input id="imp-dur" type="number" value="0"></div>
+        <div><label style="font-size:12px;font-weight:600;color:var(--muted)">创作者</label><input id="imp-creator" placeholder="创作者名称"></div>
+      </div>
+
+      <h3 style="margin:24px 0 12px">视频片段 <button class="btn-outline" onclick="addSegmentField()" style="padding:4px 10px;font-size:11px">+ 加片段</button></h3>
+      <div id="segments-container"><p style="color:var(--muted);font-size:13px">暂无片段。点击"+ 加片段"添加。</p></div>
+
+      <h3 style="margin:24px 0 12px">课程数据 (可选) <input type="checkbox" id="has-lesson" onchange="toggleLessonFields()"></h3>
+      <div id="lesson-container" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div><label style="font-size:12px;font-weight:600;color:var(--muted)">课程标题</label><input id="les-title" placeholder="如：正当防卫的构成要件"></div>
+          <div><label style="font-size:12px;font-weight:600;color:var(--muted)">领域</label><input id="les-domain" value="通用" placeholder="法学/编程/音乐"></div>
+        </div>
+        <div style="margin-top:12px">
+          <label style="font-size:12px;font-weight:600;color:var(--muted)">课程步骤 <button class="btn-outline" onclick="addLessonStepField()" style="padding:4px 10px;font-size:11px">+ 加步骤</button></label>
+          <div id="lesson-steps-container"><p style="color:var(--muted);font-size:13px">每个步骤对应一个片段，包含题目和答案。</p></div>
+        </div>
+      </div>
+
+      <button class="btn-primary" onclick="doImport()" style="margin-top:24px;padding:12px">📥 导入视频</button>
+      <div id="import-result" style="margin-top:12px"></div>
+    </div>`;
+}
+
+function addSegmentField(){
+  const i=importSegments.length;
+  importSegments.push({id:'seg_'+i});
+  renderSegments();
+}
+function renderSegments(){
+  let html='';
+  importSegments.forEach((s,i)=>{
+    html+=`<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px">
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <input placeholder="片段ID" value="${escapeAttr(s.id||'')}" onchange="importSegments[${i}].id=this.value" style="flex:1">
+        <input placeholder="标题" value="${escapeAttr(s.title||'')}" onchange="importSegments[${i}].title=this.value" style="flex:2">
+        <select onchange="importSegments[${i}].segment_type=this.value" style="width:100px">
+          <option ${s.segment_type==='step'?'selected':''}>step</option>
+          <option ${s.segment_type==='hook'?'selected':''}>hook</option>
+          <option ${s.segment_type==='highlight'?'selected':''}>highlight</option>
+          <option ${s.segment_type==='knowledge'?'selected':''}>knowledge</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px">
+        <input placeholder="开始(ms)" type="number" value="${s.start_ms||0}" onchange="importSegments[${i}].start_ms=parseInt(this.value)" style="width:100px">
+        <input placeholder="结束(ms)" type="number" value="${s.end_ms||0}" onchange="importSegments[${i}].end_ms=parseInt(this.value)" style="width:100px">
+        <input placeholder="摘要" value="${escapeAttr(s.summary||'')}" onchange="importSegments[${i}].summary=this.value" style="flex:1">
+        <button class="btn-outline" onclick="importSegments.splice(${i},1);renderSegments()" style="color:var(--danger);padding:4px 8px">✕</button>
+      </div></div>`;
+  });
+  $('segments-container').innerHTML=html||'<p style="color:var(--muted);font-size:13px">暂无片段</p>';
+}
+
+function toggleLessonFields(){
+  $('lesson-container').style.display=$('has-lesson').checked?'block':'none';
+}
+
+function addLessonStepField(){
+  const i=importLessonSteps.length;
+  importLessonSteps.push({id:'step_'+(i+1)});
+  renderLessonSteps();
+}
+function renderLessonSteps(){
+  let html='';
+  importLessonSteps.forEach((s,i)=>{
+    html+=`<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px">
+      <div style="display:flex;gap:8px;margin-bottom:6px">
+        <input placeholder="步骤ID" value="${escapeAttr(s.id||'')}" onchange="importLessonSteps[${i}].id=this.value" style="flex:1">
+        <input placeholder="步骤标题" value="${escapeAttr(s.title||'')}" onchange="importLessonSteps[${i}].title=this.value" style="flex:2">
+      </div>
+      <input placeholder="引导文案" value="${escapeAttr(s.instruction||'')}" onchange="importLessonSteps[${i}].instruction=this.value" style="width:100%;margin-bottom:4px">
+      <input placeholder="核心要点" value="${escapeAttr(s.key_point||'')}" onchange="importLessonSteps[${i}].key_point=this.value" style="width:100%;margin-bottom:4px">
+      <input placeholder="常见误区 (逗号分隔)" value="${escapeAttr((s.common_errors||[]).join(','))}" onchange="importLessonSteps[${i}].common_errors=this.value.split(',').map(x=>x.trim()).filter(Boolean)" style="width:100%;margin-bottom:4px">
+      <div style="display:flex;gap:8px;margin-bottom:4px">
+        <input placeholder="开始(ms)" type="number" value="${s.start_ms||0}" onchange="importLessonSteps[${i}].start_ms=parseInt(this.value)" style="width:100px">
+        <input placeholder="结束(ms)" type="number" value="${s.end_ms||0}" onchange="importLessonSteps[${i}].end_ms=parseInt(this.value)" style="width:100px">
+      </div>
+      <div style="border-left:3px solid var(--primary);padding-left:8px;margin-top:8px">
+        <label style="font-size:11px;font-weight:600;color:var(--muted)">题目</label>
+        <input placeholder="题目" value="${escapeAttr((s.quiz||{}).question||'')}" onchange="if(!importLessonSteps[${i}].quiz)importLessonSteps[${i}].quiz={};importLessonSteps[${i}].quiz.question=this.value" style="width:100%;margin-bottom:4px">
+        <input placeholder="答案关键词 (逗号分隔)" value="${escapeAttr(((s.quiz||{}).answer_key||[]).join(','))}" onchange="if(!importLessonSteps[${i}].quiz)importLessonSteps[${i}].quiz={};importLessonSteps[${i}].quiz.answer_key=this.value.split(',').map(x=>x.trim()).filter(Boolean)" style="width:100%;margin-bottom:4px">
+        <input placeholder="错误关键词 (逗号分隔)" value="${escapeAttr(((s.quiz||{}).wrong_key||[]).join(','))}" onchange="if(!importLessonSteps[${i}].quiz)importLessonSteps[${i}].quiz={};importLessonSteps[${i}].quiz.wrong_key=this.value.split(',').map(x=>x.trim()).filter(Boolean)" style="width:100%;margin-bottom:4px">
+        <input placeholder="通过所需最少命中数" type="number" value="${(s.quiz||{}).min_correct||2}" onchange="if(!importLessonSteps[${i}].quiz)importLessonSteps[${i}].quiz={};importLessonSteps[${i}].quiz.min_correct=parseInt(this.value)" style="width:80px">
+      </div>
+      <button class="btn-outline" onclick="importLessonSteps.splice(${i},1);renderLessonSteps()" style="color:var(--danger);padding:4px 8px;margin-top:4px">✕ 移除步骤</button>
+    </div>`;
+  });
+  $('lesson-steps-container').innerHTML=html||'<p style="color:var(--muted);font-size:13px">暂无步骤</p>';
+}
+
+async function doImport(){
+  const vid=$('imp-vid').value.trim();
+  if(!vid){alert('请输入视频 ID');return}
+  const payload={
+    video:{
+      id:vid,
+      platform:$('imp-platform').value,
+      title:$('imp-title').value.trim()||vid,
+      description:$('imp-desc').value.trim(),
+      duration_ms:parseInt($('imp-dur').value)||0,
+      creator_name:$('imp-creator').value.trim(),
+      profile_id:'profile_ashley'
+    },
+    segments:importSegments.filter(s=>s.title),
+    lesson:null
+  };
+  if($('has-lesson').checked){
+    payload.lesson={
+      id:`lesson_${vid}`,
+      title:$('les-title').value.trim(),
+      domain:$('les-domain').value.trim()||'通用',
+      gamification:{fish_reward_per_step:3,growth_per_pass:10,perfect_bonus:5},
+      steps:importLessonSteps.filter(s=>s.title)
+    };
+  }
+  const r=await fetch(API+'/import/video',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify(payload)});
+  const d=await r.json();
+  if(r.ok){
+    $('import-result').innerHTML=`<div style="background:#d1fae5;border:1px solid #10b981;border-radius:8px;padding:12px;color:#065f46">
+      ✅ 导入成功！视频: ${d.video_id} | 片段: ${d.segments.length} 个${d.lesson_path?' | 课程: '+d.lesson_path:''}
+    </div>`;
+  }else{
+    $('import-result').innerHTML=`<div style="background:#fee2e2;border:1px solid #ef4444;border-radius:8px;padding:12px;color:#991b1b">
+      ❌ 导入失败: ${escapeHtml(d.detail||'未知错误')}
+    </div>`;
+  }
+}
+</script>
+</body>
+</html>

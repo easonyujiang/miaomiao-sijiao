@@ -97,7 +97,7 @@ class SiteRepository:
                 "博主宠物、视频私教与内容向导",
                 "你好，我是妙喵，笑咪的数字分身。你可以问主人是谁，也可以直接问某条视频讲了什么、最近在忙什么，我会带你跳到对应片段。",
                 _json(["有博主个人色彩", "先回答再带路", "能定位视频片段", "不冒充本人", "只使用有依据资料", "记得主人最近在做什么"]),
-                _json({"basis": "直接、重视实际复用、用具体场景解释抽象想法、相信记忆要握在自己手里", "approved": False}),
+                _json({"basis": "直接、重视实际复用、用具体场景解释抽象想法、相信记忆要握在自己手里"}),
                 _json({"no_impersonation": True, "public_sources_only": True, "admit_unknown": True}),
             ),
         )
@@ -196,9 +196,9 @@ class SiteRepository:
         )
 
         sources = [
-            ("source_tech_pdf", "document", "AI Tutorial Demo 技术说明文档", "/Users/ashley/Documents/a-igent/07-a-igent技术说明文档-20260531083355.pdf", "indexed", "已提取架构、视频理解、OCR、悬浮层和能力边界。"),
-            ("source_intro_pdf", "document", "AI 教程助手项目名称与简介", "/Users/ashley/Documents/a-igent/项目名称与简介-20260531083333.pdf", "indexed", "确认早期定位、目标人群和教程执行化体验。"),
-            ("source_demo_video", "video", "关闭设备动作方向权限演示", "/Users/ashley/Documents/a-igent/83fa402ae9f4189e286e7d084e07bd52.mp4", "indexed", "26.8 秒竖屏演示，已切成六个时间片段。"),
+            ("source_tech_pdf", "document", "AI Tutorial Demo 技术说明文档", "assets/a-igent/tech-doc.pdf", "indexed", "已提取架构、视频理解、OCR、悬浮层和能力边界。"),
+            ("source_intro_pdf", "document", "AI 教程助手项目名称与简介", "assets/a-igent/project-intro.pdf", "indexed", "确认早期定位、目标人群和教程执行化体验。"),
+            ("source_demo_video", "video", "关闭设备动作方向权限演示", "assets/a-igent/demo.mp4", "indexed", "26.8 秒竖屏演示，已切成六个时间片段。"),
             ("source_direction", "transcript", "视频信息转化及 AI 应用方向讨论", "本次对话提供的微信录音文字稿", "indexed", "端点验证、博主宠物、视频私教和粉丝对话方向。"),
             ("source_tracks", "document", "抖音精选赛题信息", "本次对话提供的赛题原文", "indexed", "以赛道二内容重构为主。"),
             ("source_zero", "website", "zero-to-website-psi.vercel.app", "https://zero-to-website-psi.vercel.app/", "reference_only", "当前环境无法连接，未把内容写入事实库。"),
@@ -221,7 +221,7 @@ class SiteRepository:
                 "device-motion-permission-demo", "source_demo_video", "local",
                 "AI 教程助手：关闭设备动作方向权限",
                 "展示 AI 教程助手用悬浮高亮与步骤气泡引导用户关闭设备动作方向权限。",
-                "/ai-tutorial-demo.mp4", "/Users/ashley/Documents/a-igent/83fa402ae9f4189e286e7d084e07bd52.mp4",
+                "/ai-tutorial-demo.mp4", "assets/a-igent/demo.mp4",
                 26817, "manual", _json(["手机教程", "悬浮引导", "五步操作", "端点样例"]),
             ),
             (
@@ -410,8 +410,18 @@ class SiteRepository:
     def profile(self, slug: str) -> dict[str, Any] | None:
         return self._fetch_one("SELECT * FROM profiles WHERE slug = ?", (slug,))
 
+    def profile_by_id(self, profile_id: str) -> dict[str, Any] | None:
+        return self._fetch_one("SELECT * FROM profiles WHERE id = ?", (profile_id,))
+
     def pet(self, profile_id: str) -> dict[str, Any] | None:
         return self._fetch_one("SELECT * FROM pet_personas WHERE profile_id = ? AND is_active = 1", (profile_id,))
+
+    def update_pet_style(self, profile_id: str, style_rules_json: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                "UPDATE pet_personas SET style_rules_json = ?, updated_at = CURRENT_TIMESTAMP WHERE profile_id = ?",
+                (style_rules_json, profile_id),
+            )
 
     def projects(self, profile_id: str) -> list[dict[str, Any]]:
         return self._fetch_all("SELECT * FROM projects WHERE profile_id = ? AND visibility = 'public' ORDER BY is_featured DESC, sort_order", (profile_id,))

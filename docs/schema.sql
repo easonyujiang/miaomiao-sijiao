@@ -334,6 +334,7 @@ CREATE INDEX IF NOT EXISTS idx_diary_profile_pinned
 
 CREATE TABLE IF NOT EXISTS lesson_sessions (
   id TEXT PRIMARY KEY,
+  profile_id TEXT NOT NULL,
   lesson_id TEXT NOT NULL,
   video_id TEXT,
   current_step_index INTEGER NOT NULL DEFAULT 0,
@@ -343,7 +344,8 @@ CREATE TABLE IF NOT EXISTS lesson_sessions (
   step_results_json TEXT NOT NULL DEFAULT '{}',
   review_queue_json TEXT NOT NULL DEFAULT '[]',
   started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS lesson_attempts (
@@ -365,6 +367,27 @@ CREATE TABLE IF NOT EXISTS lesson_attempts (
 );
 
 CREATE INDEX IF NOT EXISTS idx_lesson_sessions_lesson
-  ON lesson_sessions(lesson_id, updated_at DESC);
+  ON lesson_sessions(profile_id, lesson_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_lesson_attempts_session
   ON lesson_attempts(session_id, step_id, attempt_num DESC);
+
+-- ============================================================
+-- 管理后台 — 审计日志
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS admin_audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  level TEXT NOT NULL,
+  module TEXT NOT NULL,
+  action TEXT NOT NULL,
+  table_name TEXT,
+  record_id TEXT,
+  detail TEXT,
+  ip TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp
+  ON admin_audit_log(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_level_module
+  ON admin_audit_log(level, module);

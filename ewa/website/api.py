@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api", tags=["creator-site"])
 
 
 class SessionCreateRequest(BaseModel):
-    slug: str = "ashley"
+    slug: str = Field(default="ashley", description="创作者 site slug；多博主部署时由前端从 NEXT_PUBLIC_SITE_SLUG 传入")
     anonymous_key: str = Field(min_length=8, max_length=200)
     source: str = "direct"
     landing_path: str = "/"
@@ -111,7 +111,7 @@ async def update_video_progress(video_id: str, payload: ProgressUpdateRequest, r
 @router.post("/site/{slug}/chat")
 async def chat_with_pet(slug: str, payload: SiteChatRequest, request: Request):
     try:
-        result = _service(request).chat(
+        result = await _service(request).chat(
             slug,
             payload.message,
             payload.session_id,

@@ -69,6 +69,7 @@ def _ensure_lesson_tables() -> None:
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS lesson_sessions (
                     id TEXT PRIMARY KEY,
+                    profile_id TEXT NOT NULL DEFAULT 'profile_ashley',
                     lesson_id TEXT NOT NULL,
                     video_id TEXT,
                     current_step_index INTEGER NOT NULL DEFAULT 0,
@@ -78,7 +79,8 @@ def _ensure_lesson_tables() -> None:
                     step_results_json TEXT NOT NULL DEFAULT '{}',
                     review_queue_json TEXT NOT NULL DEFAULT '[]',
                     started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
                 );
 
                 CREATE TABLE IF NOT EXISTS lesson_attempts (
@@ -100,7 +102,7 @@ def _ensure_lesson_tables() -> None:
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_lesson_sessions_lesson
-                    ON lesson_sessions(lesson_id, updated_at DESC);
+                    ON lesson_sessions(profile_id, lesson_id, updated_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_lesson_attempts_session
                     ON lesson_attempts(session_id, step_id, attempt_num DESC);
             """)
@@ -136,6 +138,7 @@ class LessonStore:
                     return None
                 return {
                     "session_id": row["id"],
+                    "profile_id": row["profile_id"] if "profile_id" in row.keys() else "",
                     "lesson_id": row["lesson_id"],
                     "current_step_index": row["current_step_index"],
                     "total_stars": row["total_stars"],
@@ -156,6 +159,7 @@ class LessonStore:
         session_id: str,
         lesson_id: str,
         video_id: str = "",
+        profile_id: str = "",
         current_step_index: int = 0,
         total_stars: int = 0,
         fish: int = 0,
@@ -168,13 +172,12 @@ class LessonStore:
             with _get_db() as db:
                 db.execute(
                     """INSERT OR REPLACE INTO lesson_sessions
-                       (id, lesson_id, video_id, current_step_index,
+                       (id, profile_id, lesson_id, video_id, current_step_index,
                         total_stars, fish, growth, step_results_json, review_queue_json, updated_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)""",
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)""",
                     (
-                        session_id, lesson_id, video_id, current_step_index,
+                        session_id, profile_id, lesson_id, video_id, current_step_index,
                         total_stars, fish, growth,
-                        json.dumps(step_results or {}, ensure_ascii=False),
                         json.dumps(review_queue or [], ensure_ascii=False),
                     ),
                 )
@@ -221,7 +224,7 @@ class LessonStore:
 
 # ── Session 辅助 ─────────────────────────────────────────────
 
-def get_session(session_id: str, lesson_id: str, video_id: str = "") -> dict:
+def get_session(session_id: str, lesson_id: str, video_id: str = "", profile_id: str = "") -> dict:
     """获取或创建 session（优先 SQLite，回退到内存）。"""
     stored = LessonStore.load_session(session_id)
     if stored:
@@ -229,6 +232,7 @@ def get_session(session_id: str, lesson_id: str, video_id: str = "") -> dict:
 
     return {
         "session_id": session_id,
+        "profile_id": profile_id,
         "lesson_id": lesson_id,
         "video_id": video_id,
         "current_step_index": 0,
@@ -246,6 +250,7 @@ def persist_session(session: dict) -> None:
         session_id=session["session_id"],
         lesson_id=session.get("lesson_id", ""),
         video_id=session.get("video_id", ""),
+        profile_id=session.get("profile_id", ""),
         current_step_index=session.get("current_step_index", 0),
         total_stars=session.get("total_stars", 0),
         fish=session.get("fish", 0),

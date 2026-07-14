@@ -1,8 +1,8 @@
 # 妙喵私教
 
-把教学视频变成一对一私教。
+把教学视频变成一对一私教——为每位视频博主生成有个人色彩的宠物 Agent。
 
-在 B站/抖音视频页注入 🐱 猫咪私教：看片段 → 答案例题 → AI 判卷纠错 → 跳回讲解 → 下一关。
+B站/抖音视频页注入 🐱 猫咪私教：看片段 → 答案例题 → AI 判卷纠错 → 跳回讲解 → 下一关。同时为博主提供个人互动站，粉丝可聊天、追问视频、跳转片段。
 
 ---
 
@@ -12,43 +12,51 @@
 ewa/
 ├── run.py                     # 启动入口
 ├── pyproject.toml
-├── Dockerfile
-├── docker-compose.yml
 │
 ├── ewa/                       # 后端 (Python/FastAPI)
-│   ├── config.py
+│   ├── config.py              # 统一配置（env + dotenv）
+│   ├── core/
+│   │   └── app.py             # FastAPI 应用工厂 + 生命周期
 │   ├── api/
-│   │   ├── main.py            # 应用入口 + 网站 API
-│   │   ├── lesson.py          # 私教 API (答题评分/持久化/LLM)
-│   │   └── ext.py             # 插件 API (视频问答/离线回退)
-│   └── site/
-│       ├── repository.py      # SQLite 数据层 + 种子数据
-│       ├── service.py         # 业务逻辑
-│       └── api.py             # REST 路由
+│   │   ├── main.py            # 兼容入口
+│   │   ├── lesson.py          # 私教答题 API
+│   │   └── ext.py             # Chrome 插件 API
+│   ├── site/
+│   │   ├── repository.py      # SQLite 数据层 + 种子数据
+│   │   ├── service.py         # 业务逻辑 + 风格学习 + 聊天
+│   │   └── api.py             # 网站 REST 路由
+│   ├── lesson/                # 课程核心实现
+│   │   ├── scoring.py         # 关键词 + LLM 混合评分
+│   │   ├── store.py           # 学习状态 SQLite 持久化
+│   │   ├── feedback.py        # 猫咪反馈消息生成
+│   │   ├── faq.py             # 离线 FAQ 知识库
+│   │   └── subtitle.py        # 字幕加载与检索
+│   └── llm/
+│       └── client.py          # 统一 LLM 客户端 (Kimi → DeepSeek)
 │
 ├── extension/                 # Chrome 插件 (MV3)
 │   ├── manifest.json
-│   ├── content_script.js      # 视频页注入 + 气泡 + 答题面板
+│   ├── content_script.js
 │   ├── content_style.css
 │   ├── background.js
 │   └── assets/
 │
-├── frontend/                  # Next.js 博主网站
-│   ├── app/                   # Home/Blog/Projects/Diary/Resume
+├── frontend/                  # Next.js 博主互动站
+│   ├── app/                   # Home / Blog / Projects / Diary / Resume
 │   └── components/            # PetAssistant 猫咪对话窗等
 │
 ├── data/miaomiao/
-│   ├── lessons/               # 课程 JSON (5 关练习)
+│   ├── lessons/               # 课程 JSON
 │   └── subtitles/             # B站字幕 JSON
 │
 ├── tests/
-│   ├── test_lesson_e2e.py     # 私教全流程 (21 cases)
-│   └── test_site_api.py       # 网站 API (2 cases)
+│   ├── test_lesson_e2e.py
+│   └── test_site_api.py
 │
 └── docs/
-    ├── TEST-GUIDE.md          # 测试与运行指南
-    ├── DEMO-RUNBOOK.md        # 比赛演示脚本
-    └── schema.sql             # 数据库结构 (17 表)
+    ├── schema.sql             # 完整数据库结构
+    ├── TEST-GUIDE.md          # 手动测试指南
+    └── AUDIT-REPORT.md        # 多视频/多博主/模块化审计
 ```
 
 ## 快速启动
@@ -56,19 +64,29 @@ ewa/
 ```bash
 cd ewa
 
-# 安装
+# 虚拟环境
 python -m venv .venv
-.venv\Scripts\activate        # Windows
-# source .venv/bin/activate   # macOS/Linux
+.venv\Scripts\activate
 pip install -e ".[dev]"
 
-# 配置 (无 Key 也能跑，自动用离线模式)
+# 配置 API Key
 cp .env.example .env
+# 编辑 .env 填入至少一个 LLM API Key
 
 # 启动
 python run.py
 # → 妙喵私教 ready. DB: data/miaomiao.db
 ```
+
+## 多博主部署
+
+设置环境变量切换到不同博主：
+
+```bash
+NEXT_PUBLIC_SITE_SLUG=新博主的slug
+```
+
+新博主数据通过种子数据或 API 注入 `profiles` 表，所有表通过 `profile_id` 隔离。
 
 ## 验证
 
@@ -76,49 +94,15 @@ python run.py
 # 健康检查
 curl http://localhost:8000/health
 
-# 一键跑通 5 关
-python -c "
-import json
-from ewa.api.main import create_app
-from fastapi.testclient import TestClient
-
-with open('data/miaomiao/lessons/lesson_luoxiang_001.json', encoding='utf-8') as f:
-    lesson = json.load(f)
-
-answers = {
-    'step_1': '不成立，这是假想防卫的情形，客观上没有现实的不法侵害，属于事实认识错误',
-    'step_2': '现场追回属于正当防卫，侵害仍在进行。第二天打伤不成立，属于事后报复。',
-    'step_3': '反击侵害人是防卫行为，是合法的。误伤旁边的路人不是故意的，可以按紧急情况处理。',
-    'step_4': '这是挑拨防卫，故意激怒对方然后反击，不成立防卫。互殴中一方停止后可成立防卫。',
-    'step_5': '属于特殊防卫，针对严重危及人身安全的暴力犯罪，适用无限防卫权。',
-}
-
-app = create_app()
-with TestClient(app) as c:
-    for step in lesson['steps']:
-        r = c.post('/api/lesson/quiz_submit', json={
-            'session_id':'demo','lesson_id':'lesson_luoxiang_001',
-            'step_id':step['id'],'answer':answers[step['id']],
-            'current_time_sec':step['start_ms']//1000,
-        })
-        d = r.json()
-        print(f'{\"PASS\" if d[\"passed\"] else \"FAIL\"} {step[\"id\"]} | score={d[\"score\"]} stars={d[\"stars_earned\"]}')
-
-    state = c.get('/api/lesson/state/demo/lesson_luoxiang_001').json()
-    g = state['gamification']
-    print(f'DONE | stars={g[\"total_stars\"]} fish={g[\"fish\"]} growth={g[\"growth\"]}')
-"
-
-# 全部测试
+# 运行测试
 pytest tests/ -v
 ```
 
 ## 加载 Chrome 插件
 
-1. Chrome → `chrome://extensions/`
-2. 开启「开发者模式」
-3. 「加载已解压的扩展程序」→ 选择 `extension/` 目录
-4. 打开 B站视频 `BV1mJ4m147PG` → 右下角 🐱 气泡出现
+1. Chrome → `chrome://extensions/` → 开发者模式
+2.「加载已解压的扩展程序」→ 选择 `extension/` 目录
+3. 打开 B站视频 `BV1mJ4m147PG` → 右下角 🐱 气泡
 
 ## API 端点
 
@@ -126,10 +110,10 @@ pytest tests/ -v
 |------|------|
 | `GET /health` | 健康检查 |
 | `GET /api/site/{slug}` | 博主全量数据 |
-| `POST /api/site/{slug}/chat` | 猫咪 FAQ 问答 |
+| `POST /api/site/{slug}/chat` | 猫咪聊天 (LLM 风格改写) |
 | `POST /api/ext/register_video` | 注册视频 + 字幕匹配 |
-| `POST /api/ext/chat` | 视频时间戳问答 (LLM+离线回退) |
+| `POST /api/ext/chat` | 视频时间戳问答 |
 | `POST /api/lesson/load` | 加载课程 |
-| `POST /api/lesson/quiz_submit` | 提交作答 (关键词+LLM评分) |
+| `POST /api/lesson/quiz_submit` | 提交作答 |
 | `GET /api/lesson/state/{session}/{lesson}` | 学习状态 |
 | `POST /api/lesson/next_step` | 推进下一步 |

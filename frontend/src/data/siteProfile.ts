@@ -99,6 +99,7 @@ export type SiteProfile = {
     greeting: string
     traits: string[]
     styleBasis: string
+    styleRules: Record<string, unknown>
   }
   projects: Project[]
   videos: CreatorVideo[]
@@ -133,6 +134,7 @@ export const siteProfile: SiteProfile = {
     greeting: '你好，我是妙喵，笑咪的数字分身。你可以问主人是谁，也可以直接问某条视频讲了什么、最近在忙什么，我会带你跳到对应片段。',
     traits: ['有博主个人色彩', '先回答再带路', '能定位视频片段', '不冒充本人', '只使用有依据资料', '记得主人最近在做什么'],
     styleBasis: '直接、重视实际复用、用具体场景解释抽象想法、相信记忆要握在自己手里。',
+    styleRules: {},
   },
   projects: [
     {

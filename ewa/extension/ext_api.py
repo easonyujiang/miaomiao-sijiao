@@ -5,10 +5,9 @@
 - POST /api/ext/chat            带当前时间戳的视频问答（LLM + 离线回退）
 - GET  /api/ext/health          后端连通性检查
 
-业务逻辑委托给 ewa.demo 模块：
+业务逻辑委托给 ewa.lesson 模块：
 - faq: 离线 FAQ 知识库匹配
 - subtitle: 字幕加载/缓存/搜索/视频匹配
-- 以及 ewa.llm: 统一 LLM 客户端
 """
 
 from __future__ import annotations
@@ -21,8 +20,8 @@ from pydantic import BaseModel
 
 from ewa.config import SUBTITLE_DIR, MOONSHOT_API_KEY, DEEPSEEK_API_KEY
 from ewa.llm import LLMClient
-from ewa.demo.faq import match_offline_faq
-from ewa.demo.subtitle import (
+from ewa.extension.faq import match_offline_faq
+from ewa.extension.subtitle import (
     get_video_cache,
     load_subtitles,
     match_bilibili_video,

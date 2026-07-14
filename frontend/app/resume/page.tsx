@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { getSite } from '@/lib/site'
 import { PrintButton } from '@/components/print-button'
 
-export const metadata: Metadata = { title: 'Resume', description: '钟笑咪 - 项目经历、能力方向和当前工作。' }
+export const metadata: Metadata = { title: 'Resume', description: '项目经历、能力方向与当前工作。' }
 
 export default async function ResumePage() {
   const profile = await getSite()

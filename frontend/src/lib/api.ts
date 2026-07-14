@@ -1,5 +1,7 @@
 import type { SiteProfile, DiaryEntry } from '../data/siteProfile'
 
+const DEFAULT_SLUG = process.env.NEXT_PUBLIC_SITE_SLUG || 'ashley'
+
 export type SiteSession = {
   session_id: string
   visitor_id: string
@@ -30,20 +32,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
-export function fetchSite(slug = 'ashley') {
+export function fetchSite(slug = DEFAULT_SLUG) {
   return request<SiteProfile>(`/api/site/${slug}`)
 }
 
-export function fetchDiary(slug = 'ashley', limit = 30, offset = 0) {
+export function fetchDiary(slug = DEFAULT_SLUG, limit = 30, offset = 0) {
   const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
   return request<{ items: DiaryEntry[] }>(`/api/site/${slug}/diary?${params.toString()}`)
 }
 
-export function fetchDiaryByDate(date: string, slug = 'ashley') {
+export function fetchDiaryByDate(date: string, slug = DEFAULT_SLUG) {
   return request<DiaryEntry>(`/api/site/${slug}/diary/${date}`)
 }
 
-export function createSiteSession(anonymousKey: string, slug = 'ashley') {
+export function createSiteSession(anonymousKey: string, slug = DEFAULT_SLUG) {
   return request<SiteSession>('/api/sessions', {
     method: 'POST',
     body: JSON.stringify({
@@ -58,7 +60,7 @@ export function createSiteSession(anonymousKey: string, slug = 'ashley') {
 export function chatWithPet(
   message: string,
   context: { sessionId?: string; videoId?: string; currentTimeMs?: number },
-  slug = 'ashley',
+  slug = DEFAULT_SLUG,
 ) {
   return request<ChatResponse>(`/api/site/${slug}/chat`, {
     method: 'POST',
