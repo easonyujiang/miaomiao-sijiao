@@ -1,10 +1,10 @@
 """字幕工具
 
-- 加载字幕 JSON 文件
-- 字幕缓存
-- B站/抖音视频标题匹配
+- 加载字幕 JSON（按 BV 号精确匹配）
+- 内存缓存
+- 标题回退匹配（Jaccard 相似度）
 - 时间窗口上下文检索
-- 字幕全文搜索
+- 字幕全文子串搜索
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ import json
 
 from ewa.config import SUBTITLE_DIR, SCORED_VIDEOS
 
-# 简单内存缓存
+# 内存缓存
 _video_cache: dict[str, dict] = {}
 _subtitle_cache: dict[str, list[dict]] = {}
 
@@ -28,10 +28,10 @@ def load_scored_videos() -> list[dict]:
         return json.load(f)
 
 
-# ── 字幕加载与缓存 ───────────────────────────────────────────
+# ── 字幕加载 ─────────────────────────────────────────────────
 
 def load_subtitles(bvid: str) -> list[dict]:
-    """加载指定 bvid 的字幕（带缓存）。"""
+    """按 BV 号加载字幕（带缓存）。"""
     if bvid in _subtitle_cache:
         return _subtitle_cache[bvid]
     path = SUBTITLE_DIR / f"{bvid}.json"
@@ -44,45 +44,68 @@ def load_subtitles(bvid: str) -> list[dict]:
     return subs
 
 
+def _scan_subtitle_files() -> list[dict]:
+    """扫描字幕目录，返回全部可用的 {bvid, title} 列表。"""
+    entries: list[dict] = []
+    if not SUBTITLE_DIR.exists():
+        return entries
+    for path in SUBTITLE_DIR.glob("*.json"):
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+            entries.append({
+                "bvid": data.get("bvid", path.stem),
+                "title": data.get("title", ""),
+                "subtitle_count": len(data.get("subtitles", [])),
+            })
+        except Exception:
+            pass
+    return entries
+
+
 # ── 视频匹配 ─────────────────────────────────────────────────
 
-def match_bilibili_video(title: str) -> dict | None:
-    """用标题关键词匹配 B 站已下载字幕库中最相关的视频。"""
-    scored = load_scored_videos()
-    if not scored:
-        for path in SUBTITLE_DIR.glob("*.json"):
-            try:
-                with open(path, encoding="utf-8") as f:
-                    data = json.load(f)
-                scored.append({
-                    "bvid": data.get("bvid", path.stem),
-                    "title": data.get("title", ""),
-                    "subtitle_count": len(data.get("subtitles", [])),
-                })
-            except Exception:
-                pass
+def _jaccard(a: str, b: str) -> float:
+    """两个字符串的 Jaccard 相似度（字符级）。"""
+    sa, sb = set(a), set(b)
+    if not sa or not sb:
+        return 0.0
+    return len(sa & sb) / len(sa | sb)
 
-    if not scored:
+
+def match_bilibili_video(video_id: str = "", title: str = "") -> dict | None:
+    """匹配字幕库中最相关的视频。
+
+    优先 BV 号精确匹配；回退到标题 Jaccard 相似度（阈值 0.3）。
+    """
+    entries = _scan_subtitle_files()
+    if not entries:
         return None
 
-    title_chars = set(title)
-    best, best_score = None, 0
-    for v in scored:
-        v_chars = set(v.get("title", ""))
-        overlap = len(title_chars & v_chars)
-        if overlap > best_score:
-            best_score = overlap
-            best = v
+    # 1. BV 号精确匹配
+    if video_id:
+        for v in entries:
+            if v["bvid"] == video_id:
+                return v
 
-    if best and best_score >= 3:
-        return best
+    # 2. 标题 Jaccard 回退
+    if title:
+        best, best_score = None, 0.0
+        for v in entries:
+            score = _jaccard(title, v.get("title", ""))
+            if score > best_score:
+                best_score = score
+                best = v
+        if best and best_score >= 0.3:
+            return best
+
     return None
 
 
 # ── 字幕检索 ─────────────────────────────────────────────────
 
 def get_context_subtitles(bvid: str, current_sec: int, window: int = 30) -> list[dict]:
-    """返回当前时间戳前后 window 秒的字幕句子。"""
+    """返回当前时间戳前后 window 秒的字幕。"""
     subs = load_subtitles(bvid)
     if not subs:
         return []
@@ -91,32 +114,42 @@ def get_context_subtitles(bvid: str, current_sec: int, window: int = 30) -> list
 
 
 def search_subtitles(bvid: str, query: str, top_k: int = 3) -> list[dict]:
-    """在字幕中搜索与 query 最相关的片段（离线回退用）。"""
+    """在字幕中搜索与 query 最相关的片段。
+
+    两层匹配：先子串匹配，不够时回退到 Jaccard 字符集。
+    """
     subs = load_subtitles(bvid)
     if not subs:
         return []
 
-    query_chars = set(query)
-    scored = []
+    exact_matches: list[dict] = []
+    fuzzy_matches: list[tuple[float, dict]] = []
+
     for s in subs:
         text = s.get("text", "")
-        text_chars = set(text)
-        overlap = len(query_chars & text_chars)
-        if overlap >= 3:
-            scored.append((overlap, s))
+        # 子串匹配
+        if query in text:
+            exact_matches.append(s)
+        else:
+            score = _jaccard(query, text)
+            if score >= 0.15:
+                fuzzy_matches.append((score, s))
 
-    scored.sort(key=lambda x: x[0], reverse=True)
-    return [s for _, s in scored[:top_k]]
+    # 优先返回精确匹配
+    results = exact_matches[:top_k]
+    if len(results) < top_k:
+        fuzzy_matches.sort(key=lambda x: x[0], reverse=True)
+        results.extend(s for _, s in fuzzy_matches[: top_k - len(results)])
+
+    return results[:top_k]
 
 
 # ── 缓存管理 ─────────────────────────────────────────────────
 
 def get_video_cache() -> dict[str, dict]:
-    """获取视频注册缓存（模块级）。"""
     return _video_cache
 
 
 def clear_cache() -> None:
-    """清空所有内存缓存。"""
     _video_cache.clear()
     _subtitle_cache.clear()

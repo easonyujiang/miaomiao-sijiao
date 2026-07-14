@@ -18,6 +18,7 @@ READ_WRITE_TABLES: set[str] = {
     "profiles", "pet_personas", "projects", "faqs", "profile_links",
     "knowledge_sources", "videos", "video_segments", "diary_entries",
     "creator_style_examples", "content_chunks", "lesson_sessions",
+    "community_topics", "community_replies",
 }
 
 # 仅可读的表
@@ -52,6 +53,8 @@ TABLE_SEARCH_FIELDS: dict[str, str] = {
     "video_relations": "relation_type",
     "visitor_memories": "memory_key",
     "agent_actions": "action_type",
+    "community_topics": "title",
+    "community_replies": "content",
 }
 
 

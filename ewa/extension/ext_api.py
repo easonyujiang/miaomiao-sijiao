@@ -82,7 +82,7 @@ async def register_video(req: RegisterVideoRequest) -> dict[str, Any]:
     }
 
     if req.platform == "douyin":
-        match = match_bilibili_video(req.title)
+        match = match_bilibili_video(title=req.title)
         if match:
             subs = load_subtitles(match["bvid"])
             result["matched_bilibili"] = {
@@ -92,7 +92,13 @@ async def register_video(req: RegisterVideoRequest) -> dict[str, Any]:
             }
             result["subtitle_count"] = len(subs)
     elif req.platform == "bilibili":
+        # B站直接用 BV 号精确加载
         subs = load_subtitles(req.video_id)
+        if not subs:
+            # 无精确匹配时回退标题搜索
+            match = match_bilibili_video(video_id=req.video_id, title=req.title)
+            if match:
+                subs = load_subtitles(match["bvid"])
         result["subtitle_count"] = len(subs)
 
     video_cache[ckey] = result

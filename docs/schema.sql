@@ -391,3 +391,46 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp
   ON admin_audit_log(timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_log_level_module
   ON admin_audit_log(level, module);
+
+-- ============================================================
+-- 共创社区模块
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS community_topics (
+  id TEXT PRIMARY KEY,
+  profile_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'discussion'
+    CHECK (category IN ('question', 'discussion', 'showcase', 'feedback', 'other')),
+  author_name TEXT NOT NULL DEFAULT '匿名用户',
+  tags_json TEXT NOT NULL DEFAULT '[]',
+  view_count INTEGER NOT NULL DEFAULT 0,
+  reply_count INTEGER NOT NULL DEFAULT 0,
+  like_count INTEGER NOT NULL DEFAULT 0,
+  is_pinned INTEGER NOT NULL DEFAULT 0 CHECK (is_pinned IN (0, 1)),
+  is_resolved INTEGER NOT NULL DEFAULT 0 CHECK (is_resolved IN (0, 1)),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS community_replies (
+  id TEXT PRIMARY KEY,
+  topic_id TEXT NOT NULL,
+  parent_reply_id TEXT,
+  author_name TEXT NOT NULL DEFAULT '匿名用户',
+  content TEXT NOT NULL,
+  is_pet_reply INTEGER NOT NULL DEFAULT 0 CHECK (is_pet_reply IN (0, 1)),
+  like_count INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (topic_id) REFERENCES community_topics(id) ON DELETE CASCADE,
+  FOREIGN KEY (parent_reply_id) REFERENCES community_replies(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_topics_profile_category
+  ON community_topics(profile_id, category, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_topics_pinned
+  ON community_topics(profile_id, is_pinned DESC, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_replies_topic
+  ON community_replies(topic_id, created_at ASC);

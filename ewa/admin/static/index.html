@@ -137,6 +137,7 @@ function buildSidebar(){
     '视频与来源':['videos','video_segments','video_relations','knowledge_sources','profile_links'],
     '用户数据':['visitors','visitor_sessions','conversation_messages','visitor_events','visitor_memories','viewer_video_progress','agent_actions'],
     '课程':['lesson_sessions','lesson_attempts'],
+    '社区管理':['community_topics','community_replies'],
   };
   let html=`<div class="sidebar-item active" onclick="showDashboard()">📊 仪表盘</div>
 <div class="sidebar-item" onclick="showImport()">📥 导入视频</div>
@@ -152,7 +153,7 @@ function buildSidebar(){
   $('sidebar-menu').innerHTML=html;
 }
 
-function tablesLabel(t){const m={profiles:'博主信息',pet_personas:'宠物人设',projects:'项目',faqs:'FAQ问答',diary_entries:'日记',videos:'视频',video_segments:'视频片段',knowledge_sources:'知识来源',lesson_sessions:'学习会话',lesson_attempts:'答题记录',conversation_messages:'聊天记录'};return m[t]||t}
+function tablesLabel(t){const m={profiles:'博主信息',pet_personas:'宠物人设',projects:'项目',faqs:'FAQ问答',diary_entries:'日记',videos:'视频',video_segments:'视频片段',knowledge_sources:'知识来源',lesson_sessions:'学习会话',lesson_attempts:'答题记录',conversation_messages:'聊天记录',community_topics:'社区话题',community_replies:'话题回复'};return m[t]||t}
 
 async function showDashboard(){
   currentTable='';$('page-title').textContent='仪表盘';

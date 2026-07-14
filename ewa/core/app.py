@@ -110,6 +110,10 @@ def create_app(site_db_path: str | None = None) -> FastAPI:
     from ewa.admin.api import router as admin_router
     app.include_router(admin_router)
 
+    # 💬 共创社区模块
+    from ewa.community.api import router as community_router
+    app.include_router(community_router)
+
     # 健康检查
     @app.get("/health")
     async def health():
