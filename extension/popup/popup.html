@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>妙喵私教</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 120px;
+      height: 120px;
+      background: #fff;
+    }
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #mm-popup-cat {
+      width: 84px;
+      height: 84px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      transition: transform 0.2s;
+    }
+    #mm-popup-cat:hover { transform: scale(1.08); }
+    #mm-popup-cat img {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: #fff5f8;
+      border: 2px solid #ffd6e4;
+      box-shadow: 0 4px 14px rgba(255, 150, 180, 0.35);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <button id="mm-popup-cat" title="召唤妙喵">
+    <img src="../assets/cat128.png" alt="妙喵" />
+  </button>
+  <script src="popup.js"></script>
+</body>
+</html>

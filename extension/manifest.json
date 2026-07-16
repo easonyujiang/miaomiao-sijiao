@@ -1,37 +1,49 @@
 {
   "manifest_version": 3,
   "name": "妙喵私教",
-  "version": "0.2.0",
-  "description": "把教学视频变成一对一私教 — 视频观看 + AI出题 + 判卷纠错",
-  "permissions": ["activeTab", "storage"],
+  "version": "0.1.0",
+  "description": "把抖音/B站教学视频变成一对一私教——妙喵帮你看视频、出题、纠错、跳片段",
+  "permissions": ["storage", "tabs"],
   "host_permissions": [
-    "*://*.bilibili.com/*",
-    "*://*.douyin.com/*",
+    "https://www.douyin.com/*",
+    "https://www.bilibili.com/*",
     "http://localhost:8000/*"
-  ],
-  "content_scripts": [
-    {
-      "matches": [
-        "*://*.bilibili.com/video/*",
-        "*://*.douyin.com/video/*"
-      ],
-      "js": ["content_script.js"],
-      "css": ["content_style.css"],
-      "run_at": "document_end"
-    }
   ],
   "background": {
     "service_worker": "background.js"
   },
+  "content_scripts": [
+    {
+      "matches": ["https://www.douyin.com/video/*"],
+      "js": ["lib/howler.min.js", "lib/lottie.min.js", "lib/confetti.browser.js", "sound.js", "pet.js", "content/douyin.js"],
+      "css": ["content/style.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.bilibili.com/video/*"],
+      "js": ["lib/howler.min.js", "lib/lottie.min.js", "lib/confetti.browser.js", "sound.js", "pet.js", "content/bilibili.js"],
+      "css": ["content/style.css"],
+      "run_at": "document_idle"
+    }
+  ],
   "web_accessible_resources": [
     {
-      "resources": ["assets/*"],
+      "resources": ["sounds/*", "lottie/*"],
       "matches": ["*://*.bilibili.com/*", "*://*.douyin.com/*"]
     }
   ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "妙喵私教",
+    "default_icon": {
+      "16": "assets/cat16.png",
+      "48": "assets/cat48.png",
+      "128": "assets/cat128.png"
+    }
+  },
   "icons": {
-    "16": "assets/cat-16.png",
-    "48": "assets/cat-48.png",
-    "128": "assets/cat-128.png"
+    "16": "assets/cat16.png",
+    "48": "assets/cat48.png",
+    "128": "assets/cat128.png"
   }
 }
