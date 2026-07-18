@@ -1,9 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
-import { motion } from 'motion/react'
-import { useVoice } from '@/context/voice-context'
-import { buildContentCommands } from '@/lib/voice-commands'
+import { useEffect, useRef, useState } from 'react'
 import { CATEGORIES, type ContentItem } from '@/lib/community-data'
 import { fetchTopics, topicToContentItem, type ApiTopic } from '@/lib/community-api'
 import { ContentCard } from './content-card'
@@ -13,7 +10,6 @@ interface ContentFeedProps {
 }
 
 export function ContentFeed({ onOpenDetail }: ContentFeedProps) {
-  const { registerCommands } = useVoice()
   const [activeCategory, setActiveCategory] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [items, setItems] = useState<ContentItem[]>([])
@@ -55,28 +51,6 @@ export function ContentFeed({ onOpenDetail }: ContentFeedProps) {
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [safeIndex])
 
-  const handleNext = useCallback(() => {
-    setSelectedIndex((prev) => Math.min(prev + 1, filtered.length - 1))
-  }, [filtered.length])
-
-  const handlePrev = useCallback(() => {
-    setSelectedIndex((prev) => Math.max(prev - 1, 0))
-  }, [])
-
-  const handleOpen = useCallback(() => {
-    if (filtered[safeIndex]) {
-      onOpenDetail(filtered[safeIndex], topicIds[safeIndex])
-    }
-  }, [filtered, safeIndex, topicIds, onOpenDetail])
-
-  const handleBack = useCallback(() => {}, [])
-
-  useEffect(() => {
-    const cmds = buildContentCommands(handleNext, handlePrev, handleOpen, handleBack)
-    const unregister = registerCommands(cmds)
-    return unregister
-  }, [registerCommands, handleNext, handlePrev, handleOpen, handleBack])
-
   return (
     <div>
       {/* Category tabs */}
@@ -98,19 +72,6 @@ export function ContentFeed({ onOpenDetail }: ContentFeedProps) {
           </button>
         ))}
       </div>
-
-      {/* Voice hint */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-        className="mb-4 flex items-center gap-2 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-[11px] text-blue-600"
-      >
-        <span>🎤</span>
-        <span>
-          说「<strong>下一条</strong>」或「<strong>上一条</strong>」选择内容，说「<strong>打开</strong>」查看详情
-        </span>
-      </motion.div>
 
       {/* Loading */}
       {loading && (

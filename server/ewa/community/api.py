@@ -37,6 +37,7 @@ class CreateTopicRequest(BaseModel):
     category: str = Field(default="discussion")
     author_name: str = Field(default="匿名用户", max_length=100)
     tags: list[str] = Field(default_factory=list)
+    video_id: str | None = None
 
 
 class CreateReplyRequest(BaseModel):
@@ -52,14 +53,21 @@ def list_topics(
     request: Request,
     profile_id: str = Query(default="profile_ashley"),
     category: str = Query(default=""),
+    video_id: str = Query(default=""),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ):
     conditions = ["profile_id = ?"]
     params: list[Any] = [profile_id]
     if category:
-        conditions.append("category = ?")
-        params.append(category)
+        if category == "video-linked":
+            conditions.append("video_id IS NOT NULL AND video_id != ''")
+        else:
+            conditions.append("category = ?")
+            params.append(category)
+    if video_id:
+        conditions.append("video_id = ?")
+        params.append(video_id)
 
     where = " AND ".join(conditions)
     with _db(request) as conn:
@@ -120,10 +128,10 @@ def create_topic(body: CreateTopicRequest, request: Request,
     with _db(request) as conn:
         conn.execute(
             """INSERT INTO community_topics
-               (id, profile_id, title, content, category, author_name, tags_json, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (id, profile_id, title, content, category, author_name, tags_json, video_id, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (topic_id, profile_id, body.title, body.content, body.category,
-             body.author_name, json.dumps(body.tags, ensure_ascii=False), now, now),
+             body.author_name, json.dumps(body.tags, ensure_ascii=False), body.video_id, now, now),
         )
         conn.commit()
 
@@ -171,6 +179,7 @@ def _topic_row(r: sqlite3.Row) -> dict[str, Any]:
         "category": r["category"],
         "author_name": r["author_name"],
         "tags": _json(r["tags_json"], []),
+        "video_id": r["video_id"] if "video_id" in r.keys() else None,
         "view_count": r["view_count"],
         "reply_count": r["reply_count"],
         "like_count": r["like_count"],

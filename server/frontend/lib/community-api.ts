@@ -28,6 +28,7 @@ export type ApiTopic = {
   category: string
   author_name: string
   tags: string[]
+  video_id: string | null
   view_count: number
   reply_count: number
   like_count: number
@@ -83,6 +84,7 @@ export function topicToContentItem(topic: ApiTopic) {
     likes: topic.like_count,
     commentCount: topic.reply_count,
     icon: TYPE_ICONS[type] ?? '💬',
+    videoId: topic.video_id ?? undefined,
   }
 }
 
@@ -110,9 +112,10 @@ async function request<T>(path: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
-export function fetchTopics(category?: string, limit = 50, offset = 0) {
+export function fetchTopics(category?: string, videoId?: string, limit = 50, offset = 0) {
   const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
   if (category) params.set('category', category)
+  if (videoId) params.set('video_id', videoId)
   return request<TopicListResponse>(`/api/community/topics?${params.toString()}`)
 }
 

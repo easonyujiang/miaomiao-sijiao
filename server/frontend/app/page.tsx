@@ -5,17 +5,37 @@ import { getSite } from '@/lib/site'
 import { posts } from '@/lib/posts'
 import { formatDate } from '@/components/diary-card'
 
+async function getRecentTopics() {
+  try {
+    const res = await fetch(`${process.env.EWA_PUBLIC_URL || 'http://localhost:8000'}/api/community/topics?limit=3`, { next: { revalidate: 60 } })
+    if (!res.ok) return []
+    const data = await res.json()
+    return data.items ?? []
+  } catch {
+    return []
+  }
+}
+
 export default async function HomePage() {
   const profile = await getSite()
   const recentDiary = (profile.diary ?? []).slice(0, 3)
+  const recentTopics = await getRecentTopics()
+
   return <>
     <BlurFade>
       <div className="flex h-20 w-20 items-center justify-center rounded-full bg-neutral-900 text-xl font-semibold text-white">{profile.identity.initials}</div>
-      <h1 className="mt-8 text-3xl font-semibold tracking-tight sm:text-4xl">Hey, I’m {profile.identity.name}.</h1>
+      <h1 className="mt-8 text-3xl font-semibold tracking-tight sm:text-4xl">Hey, I'm {profile.identity.name}.</h1>
       <p className="mt-5 max-w-2xl text-lg leading-8 text-neutral-600">{profile.identity.summary}</p>
       <p className="mt-4 max-w-2xl text-lg leading-8 text-neutral-600">这里是她的端点验证：让一只叫妙喵的小猫，把视频、文字和记忆连起来——能回答、能带路、也能记住每一位访客来过。</p>
       <div className="mt-6 flex flex-wrap gap-2">{profile.identity.tags.map((tag) => <span key={tag} className="rounded-full bg-neutral-100 px-3 py-1 text-xs text-neutral-600">{tag}</span>)}</div>
     </BlurFade>
+
+    {posts.length > 0 && (
+      <section className="mt-20">
+        <div className="mb-2 flex items-center justify-between"><h2 className="text-xl font-semibold tracking-tight">最近在写</h2><Link href="/blog" className="text-sm text-neutral-500 hover:text-neutral-950">All posts →</Link></div>
+        <div>{posts.map((post) => <Link key={post.meta.slug} href={`/blog/${post.meta.slug}`} className="group grid gap-1 border-b border-neutral-200 py-5 sm:grid-cols-[120px_1fr]"><time className="text-sm text-neutral-400">{post.meta.date}</time><div><h3 className="font-medium group-hover:underline">{post.meta.title}</h3><p className="mt-1 text-sm leading-6 text-neutral-500">{post.meta.summary}</p></div></Link>)}</div>
+      </section>
+    )}
 
     {recentDiary.length > 0 && (
       <section className="mt-20">
@@ -44,9 +64,26 @@ export default async function HomePage() {
       <div className="grid gap-4 sm:grid-cols-2">{profile.projects.slice(0, 2).map((project, index) => <BlurFade key={project.id} delay={0.08 * (index + 1)}><Link href="/projects" className="group block rounded-xl border border-neutral-200 bg-white p-5 transition hover:border-neutral-300 hover:shadow-sm"><div className="flex items-center justify-between"><span className="text-xs text-neutral-400">{project.stage}</span><ArrowUpRight className="h-4 w-4 text-neutral-300 transition group-hover:text-neutral-700" /></div><h3 className="mt-8 font-semibold tracking-tight">{project.name}</h3><p className="mt-2 text-sm leading-6 text-neutral-500">{project.summary}</p></Link></BlurFade>)}</div>
     </section>
 
-    <section className="mt-20">
-      <div className="mb-2 flex items-center justify-between"><h2 className="text-xl font-semibold tracking-tight">Recent writing</h2><Link href="/blog" className="text-sm text-neutral-500 hover:text-neutral-950">All posts →</Link></div>
-      <div>{posts.map((post) => <Link key={post.meta.slug} href={`/blog/${post.meta.slug}`} className="group grid gap-1 border-b border-neutral-200 py-5 sm:grid-cols-[120px_1fr]"><time className="text-sm text-neutral-400">{post.meta.date}</time><div><h3 className="font-medium group-hover:underline">{post.meta.title}</h3><p className="mt-1 text-sm leading-6 text-neutral-500">{post.meta.summary}</p></div></Link>)}</div>
-    </section>
+    {recentTopics.length > 0 && (
+      <section className="mt-20">
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="text-xl font-semibold tracking-tight">社区动态</h2>
+          <Link href="/community" className="text-sm text-neutral-500 hover:text-neutral-950">查看社区 →</Link>
+        </div>
+        <div className="grid gap-3">
+          {recentTopics.map((topic: { id: string; title: string; category: string; created_at: string; reply_count: number }, index: number) => (
+            <BlurFade key={topic.id} delay={0.06 * (index + 1)}>
+              <Link href="/community" className="group grid gap-1 border-b border-neutral-200 py-4 sm:grid-cols-[140px_1fr]">
+                <time className="text-sm text-neutral-400">{topic.created_at.slice(0, 10)}</time>
+                <div>
+                  <h3 className="font-medium tracking-tight group-hover:underline">{topic.title}</h3>
+                  <p className="mt-1 text-sm leading-6 text-neutral-500">{topic.category} · {topic.reply_count} 条回复</p>
+                </div>
+              </Link>
+            </BlurFade>
+          ))}
+        </div>
+      </section>
+    )}
   </>
 }

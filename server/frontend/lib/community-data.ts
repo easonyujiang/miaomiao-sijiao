@@ -11,6 +11,7 @@ export type ContentItem = {
   likes: number
   commentCount: number
   icon?: string
+  videoId?: string
 }
 
 export type Comment = {
@@ -30,4 +31,5 @@ export const CATEGORIES = [
   { key: 'discussion', label: '💬 讨论' },
   { key: 'showcase', label: '🎬 展示' },
   { key: 'feedback', label: '💡 反馈' },
+  { key: 'video-linked', label: '🔗 关联视频' },
 ]

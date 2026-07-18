@@ -69,6 +69,11 @@ export function ContentCard({ item, isSelected, onSelect, onOpen }: ContentCardP
               {typeIcons[item.type]}
               {typeLabels[item.type]}
             </span>
+            {item.videoId && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] text-blue-500">
+                🔗 视频讨论
+              </span>
+            )}
             <span className="text-[10px] text-neutral-400">{item.createdAt}</span>
           </div>
 
@@ -119,7 +124,7 @@ export function ContentCard({ item, isSelected, onSelect, onOpen }: ContentCardP
             }}
             className="w-full rounded-lg bg-blue-50 py-2 text-xs font-medium text-blue-600 hover:bg-blue-100 transition-colors"
           >
-            查看详情 →（或说「打开」）
+            查看详情 →
           </button>
         </motion.div>
       )}

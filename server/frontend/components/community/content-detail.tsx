@@ -66,7 +66,7 @@ export function ContentDetail({ item, topicId, onBack }: ContentDetailProps) {
         className="flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-900 transition-colors mb-4"
       >
         <ArrowLeft className="h-4 w-4" />
-        返回列表（或说「返回」）
+        返回列表
       </button>
 
       <div className={`w-full h-48 rounded-xl bg-gradient-to-br ${item.thumbnailColor} flex items-center justify-center mb-6`}>
@@ -96,9 +96,6 @@ export function ContentDetail({ item, topicId, onBack }: ContentDetailProps) {
 
       <div className="prose prose-sm prose-neutral max-w-none mb-6">
         <p className="text-sm leading-7 text-neutral-600">{item.description}</p>
-        <p className="text-sm leading-7 text-neutral-600 mt-4">
-          语音控制提示：说「<strong>返回</strong>」回到列表，说「<strong>打开评论</strong>」查看讨论。
-        </p>
       </div>
 
       <div className="flex flex-wrap gap-1.5 mb-4">
@@ -134,7 +131,7 @@ export function ContentDetail({ item, topicId, onBack }: ContentDetailProps) {
           onClick={() => setShowComments(true)}
           className="w-full rounded-lg bg-blue-50 border border-blue-100 px-4 py-2.5 text-xs text-blue-600 hover:bg-blue-100 transition-colors mb-4"
         >
-          💬 说「<strong>打开评论</strong>」或点击此处查看 {item.commentCount} 条评论
+          💬 查看 {item.commentCount} 条评论
         </button>
       )}
 

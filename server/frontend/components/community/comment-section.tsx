@@ -1,10 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { motion } from 'motion/react'
 import { MessageCircle, ChevronUp } from 'lucide-react'
-import { useVoice } from '@/context/voice-context'
-import { buildCommentCommands } from '@/lib/voice-commands'
 import type { Comment } from '@/lib/community-data'
 import { CommentItem } from './comment-item'
 
@@ -16,20 +14,7 @@ interface CommentSectionProps {
 }
 
 export function CommentSection({ comments, commentCount, visible, onClose }: CommentSectionProps) {
-  const { registerCommands } = useVoice()
   const [allExpanded, setAllExpanded] = useState(false)
-
-  useEffect(() => {
-    if (!visible) return
-    const cmds = buildCommentCommands(
-      () => {},
-      onClose,
-      () => setAllExpanded(true),
-      () => setAllExpanded(false),
-    )
-    const unregister = registerCommands(cmds)
-    return unregister
-  }, [visible, onClose, registerCommands])
 
   if (!visible) return null
 
@@ -59,7 +44,7 @@ export function CommentSection({ comments, commentCount, visible, onClose }: Com
             className="flex items-center gap-1 text-[10px] text-neutral-400 hover:text-neutral-600 transition-colors"
           >
             <ChevronUp className="h-3 w-3" />
-            收起评论（或说「返回」）
+            收起评论
           </button>
         </div>
       </div>
