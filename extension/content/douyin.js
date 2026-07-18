@@ -93,14 +93,20 @@ function extractTitle() {
 
 // ── 后端通信 ─────────────────────────────────────────────
 async function fetchWithTimeout(url, opts = {}, timeoutMs = 5000) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { ...opts, signal: controller.signal });
-    clearTimeout(id);
-    return res;
+    const resp = await chrome.runtime.sendMessage({
+      type: "FETCH",
+      url,
+      options: opts,
+      timeout: timeoutMs,
+    });
+    if (resp.error) throw new Error(resp.error);
+    return {
+      ok: resp.ok,
+      status: resp.status,
+      json: () => Promise.resolve(JSON.parse(resp.text)),
+    };
   } catch (e) {
-    clearTimeout(id);
     throw e;
   }
 }
@@ -301,7 +307,7 @@ function appendCatResponse(data) {
     const ts = document.createElement("div");
     ts.className = "mm-timestamp-ref";
     const fmt = formatTime(data.seek_to_sec);
-    ts.innerHTML = `⏩ 跳到 ${fmt}`;
+    ts.textContent = `⏩ 跳到 ${fmt}`;
     ts.addEventListener("click", () => {
       seekTo(data.seek_to_sec);
       appendMessage(`已跳到 ${fmt}`, "cat");

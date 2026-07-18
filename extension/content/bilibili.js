@@ -114,14 +114,20 @@ function extractTitle() {
 }
 
 async function fetchWithTimeout(url, opts = {}, ms = 5000) {
-  const ctrl = new AbortController();
-  const id = setTimeout(() => ctrl.abort(), ms);
   try {
-    const res = await fetch(url, { ...opts, signal: ctrl.signal });
-    clearTimeout(id);
-    return res;
+    const resp = await chrome.runtime.sendMessage({
+      type: "FETCH",
+      url,
+      options: opts,
+      timeout: ms,
+    });
+    if (resp.error) throw new Error(resp.error);
+    return {
+      ok: resp.ok,
+      status: resp.status,
+      json: () => Promise.resolve(JSON.parse(resp.text)),
+    };
   } catch (e) {
-    clearTimeout(id);
     throw e;
   }
 }
@@ -195,7 +201,7 @@ function showLessonStep(step) {
   const v = getVideo();
   if (v) { v.currentTime = step.start_ms / 1000; v.play(); }
   appendMessage(
-    `📚 第 ${step.id.replace("step_0", "")} 关：${step.title}\n\n${step.instruction}\n\n看到 ${formatTime(step.end_ms / 1000)} 后，妙喵会出题考你～`,
+    `📚 第 ${step.id.replace("step_", "")} 关：${step.title}\n\n${step.instruction}\n\n看到 ${formatTime(step.end_ms / 1000)} 后，妙喵会出题考你～`,
     "cat"
   );
   // 监控到达 end_ms 时自动出题
@@ -203,12 +209,15 @@ function showLessonStep(step) {
 }
 
 let quizTimer = null;
+let quizCheckInterval = null;
 function scheduleQuiz(step) {
   clearTimeout(quizTimer);
-  const checkInterval = setInterval(() => {
+  if (quizCheckInterval) { clearInterval(quizCheckInterval); quizCheckInterval = null; }
+  quizCheckInterval = setInterval(() => {
     const current = getCurrentTime() * 1000;
     if (current >= step.end_ms) {
-      clearInterval(checkInterval);
+      clearInterval(quizCheckInterval);
+      quizCheckInterval = null;
       promptQuiz(step);
     }
   }, 2000);
@@ -269,7 +278,7 @@ async function submitAndShow(answer, step) {
   const c = document.getElementById("mm-messages");
   const div = document.createElement("div");
   div.className = "mm-msg mm-cat";
-  div.innerHTML = result.cat_message.replace(/\n/g, "<br>");
+  div.textContent = result.cat_message;
   if (result.seek_to_ms != null && !result.passed) {
     const ts = document.createElement("div");
     ts.className = "mm-timestamp-ref";
@@ -465,7 +474,7 @@ function appendCatResponse(data) {
     const ts = document.createElement("div");
     ts.className = "mm-timestamp-ref";
     const fmt = formatTime(data.seek_to_sec);
-    ts.innerHTML = `⏩ 跳到 ${fmt}`;
+    ts.textContent = `⏩ 跳到 ${fmt}`;
     ts.addEventListener("click", () => seekTo(data.seek_to_sec));
     div.appendChild(ts);
   }
@@ -536,7 +545,7 @@ async function onVideoDetected(bvid, title) {
 
   const badge = document.getElementById("mm-state-badge");
   MiaoPet.greet();
-  if (lesson) {
+  if (lesson && lesson.lesson_id) {
     badge.textContent = "练习模式";
     appendMessage(
       `✨ 这是一节结构化课程：${lesson.title}\n共 ${lesson.total_steps} 关卡，妙喵会带你一步步学！\n\n准备好了吗？`,
