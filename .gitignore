@@ -33,3 +33,6 @@ yarn-error.log*
 *.swp
 *.tmp
 *.log
+
+# Credentials
+.ssh-credentials.json
