@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { posts } from '@/lib/posts'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = { title: 'Blog', description: '关于 AI Agent、视频产品和独立开发的文章。' }
 
 export default function BlogPage() {

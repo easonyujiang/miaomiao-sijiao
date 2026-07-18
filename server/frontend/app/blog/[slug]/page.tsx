@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getPost, posts } from '@/lib/posts'
 
+export const dynamic = 'force-dynamic'
+
 export function generateStaticParams() {
   return posts.map((post) => ({ slug: post.meta.slug }))
 }
