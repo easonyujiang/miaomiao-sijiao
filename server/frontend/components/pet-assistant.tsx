@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import { MessageCircle } from 'lucide-react'
 import type { SiteProfile } from '@/src/data/siteProfile'
 import { chatWithPet, createSiteSession, type AgentAction, type SiteSession } from '@/src/lib/api'
+import { generateId } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 
@@ -37,7 +38,7 @@ export function PetAssistant({ profile }: { profile: SiteProfile }) {
 
   useEffect(() => {
     const keyName = 'miaomiao_anonymous_key'
-    const key = localStorage.getItem(keyName) ?? crypto.randomUUID()
+    const key = localStorage.getItem(keyName) ?? generateId()
     localStorage.setItem(keyName, key)
     void createSiteSession(key).then((value) => { setSession(value); setStatus('online') }).catch(() => setStatus('offline'))
   }, [])
@@ -56,14 +57,14 @@ export function PetAssistant({ profile }: { profile: SiteProfile }) {
     const text = raw.trim()
     if (!text || pending) return
     setQuestion('')
-    setMessages((items) => [...items, { id: crypto.randomUUID(), role: 'visitor', text }])
+    setMessages((items) => [...items, { id: generateId(), role: 'visitor', text }])
     setPending(true)
     try {
       const response = await chatWithPet(text, { sessionId: session?.session_id })
-      setMessages((items) => [...items, { id: crypto.randomUUID(), role: 'pet', text: response.answer, action: response.actions[0] }])
+      setMessages((items) => [...items, { id: generateId(), role: 'pet', text: response.answer, action: response.actions[0] }])
     } catch {
       const answer = localAnswer(text)
-      setMessages((items) => [...items, { id: crypto.randomUUID(), role: 'pet', ...answer }])
+      setMessages((items) => [...items, { id: generateId(), role: 'pet', ...answer }])
     } finally {
       setPending(false)
     }
