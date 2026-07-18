@@ -73,3 +73,6 @@ npm run dev                   # → http://localhost:3000
 ## 文档
 
 - [用户测试手册](docs/USER-TESTING-GUIDE.md)
+- [服务端部署指导](docs/SERVER-DEPLOYMENT.md)
+- [Chrome 插件打包指导](docs/EXTENSION-PACKAGING.md)
+- [已知问题清单](docs/KNOWN-ISSUES.md)
