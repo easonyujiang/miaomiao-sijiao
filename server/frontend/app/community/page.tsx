@@ -16,7 +16,6 @@ export default function CommunityPage() {
         <h1 className="text-2xl font-bold mb-2">🎬 视频学习社区</h1>
         <p className="text-sm text-neutral-500">
           围绕视频内容的问答讨论，看完视频来提问、分享见解。
-          <span className="text-blue-500 ml-2">🎤 全程语音可控</span>
         </p>
       </div>
 
