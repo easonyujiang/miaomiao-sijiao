@@ -3,12 +3,13 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'motion/react'
-import { MessageCircle } from 'lucide-react'
+import { MessageCircle, Mic, MicOff } from 'lucide-react'
 import type { SiteProfile } from '@/src/data/siteProfile'
 import { chatWithPet, createSiteSession, type AgentAction, type SiteSession } from '@/src/lib/api'
 import { generateId } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { useSpeechRecognition } from '@/lib/use-speech-recognition'
 
 type Message = { id: string; role: 'visitor' | 'pet'; text: string; action?: AgentAction }
 
@@ -36,12 +37,20 @@ export function PetAssistant({ profile }: { profile: SiteProfile }) {
   const [pending, setPending] = useState(false)
   const [messages, setMessages] = useState<Message[]>([{ id: 'welcome', role: 'pet', text: profile.pet.greeting }])
 
+  const speech = useSpeechRecognition()
+
   useEffect(() => {
     const keyName = 'miaomiao_anonymous_key'
     const key = localStorage.getItem(keyName) ?? generateId()
     localStorage.setItem(keyName, key)
     void createSiteSession(key).then((value) => { setSession(value); setStatus('online') }).catch(() => setStatus('offline'))
   }, [])
+
+  useEffect(() => {
+    if (speech.state === 'idle' && speech.transcript) {
+      setQuestion((prev) => prev ? prev + ' ' + speech.transcript : speech.transcript)
+    }
+  }, [speech.state, speech.transcript])
 
   function localAnswer(text: string) {
     const faq = profile.faq.find((item) => text.includes(item.question.replace(/[？?]/g, '')))
@@ -86,6 +95,15 @@ export function PetAssistant({ profile }: { profile: SiteProfile }) {
     void ask(question)
   }
 
+  function toggleVoice() {
+    if (speech.state === 'listening') {
+      speech.stop()
+    } else {
+      setQuestion('')
+      speech.start()
+    }
+  }
+
   return <Dialog open={open} onOpenChange={setOpen}>
     <DialogTrigger asChild>
       <motion.button
@@ -119,7 +137,29 @@ export function PetAssistant({ profile }: { profile: SiteProfile }) {
       </div>
       <div className="border-t border-neutral-100 p-3">
         <div className="mb-2 flex gap-2 overflow-x-auto">{profile.faq.slice(0, 3).map((item) => <button key={item.id} onClick={() => void ask(item.question)} className="shrink-0 rounded-full bg-neutral-100 px-3 py-1 text-[11px] text-neutral-500">{item.question}</button>)}</div>
-        <form onSubmit={submit} className="flex gap-2"><input value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Ask anything" className="min-w-0 flex-1 rounded-md border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400"/><Button type="submit" size="icon" disabled={pending}><MessageCircle className="h-4 w-4" /></Button></form>
+        <form onSubmit={submit} className="flex gap-2">
+          <input value={question} onChange={(event) => setQuestion(event.target.value)} placeholder={speech.state === 'listening' ? '正在听…' : 'Ask anything'} className="min-w-0 flex-1 rounded-md border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400"/>
+          {speech.isSupported && (
+            <button
+              type="button"
+              onClick={toggleVoice}
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                speech.state === 'listening'
+                  ? 'border-red-300 bg-red-50 text-red-500'
+                  : 'border-neutral-200 text-neutral-400 hover:border-neutral-300 hover:text-neutral-600'
+              }`}
+            >
+              {speech.state === 'listening' ? (
+                <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 1, repeat: Infinity }}>
+                  <MicOff className="h-4 w-4" />
+                </motion.div>
+              ) : (
+                <Mic className="h-4 w-4" />
+              )}
+            </button>
+          )}
+          <Button type="submit" size="icon" disabled={pending}><MessageCircle className="h-4 w-4" /></Button>
+        </form>
       </div>
     </DialogContent>
   </Dialog>
