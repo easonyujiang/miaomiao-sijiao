@@ -156,7 +156,7 @@ def seed(profile_id: str, db_path: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="社区种子数据")
     parser.add_argument("--profile", default="profile_ashley")
-    parser.add_argument("--db", default="data/site.db", help="SQLite 路径")
+    parser.add_argument("--db", default="data/miaomiao.db", help="SQLite 路径")
     args = parser.parse_args()
 
     project_root = Path(__file__).resolve().parents[1]
