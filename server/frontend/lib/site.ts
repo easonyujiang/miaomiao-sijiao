@@ -8,7 +8,10 @@ export const getSite = cache(async (): Promise<SiteProfile> => {
   const origin = process.env.API_BASE_URL
   if (origin) {
     try {
-      const response = await fetch(`${origin}/api/site/${SITE_SLUG}`, { next: { revalidate: 60 } })
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 5000)
+      const response = await fetch(`${origin}/api/site/${SITE_SLUG}`, { next: { revalidate: 60 }, signal: controller.signal })
+      clearTimeout(timer)
       if (response.ok) {
         return await response.json() as SiteProfile
       }
