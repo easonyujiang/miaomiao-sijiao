@@ -8,10 +8,10 @@ import { type ContentItem } from '@/lib/community-data'
 
 export default function CommunityPage() {
   const [detailItem, setDetailItem] = useState<ContentItem | null>(null)
+  const [detailTopicId, setDetailTopicId] = useState<string | null>(null)
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
-      {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold mb-2">🎬 视频学习社区</h1>
         <p className="text-sm text-neutral-500">
@@ -20,18 +20,18 @@ export default function CommunityPage() {
         </p>
       </div>
 
-      {/* Feed or Detail */}
       <AnimatePresence mode="wait">
-        {detailItem ? (
+        {detailItem && detailTopicId ? (
           <ContentDetail
             key="detail"
             item={detailItem}
-            onBack={() => setDetailItem(null)}
+            topicId={detailTopicId}
+            onBack={() => { setDetailItem(null); setDetailTopicId(null) }}
           />
         ) : (
           <ContentFeed
             key="feed"
-            onOpenDetail={(item) => setDetailItem(item)}
+            onOpenDetail={(item, topicId) => { setDetailItem(item); setDetailTopicId(topicId) }}
           />
         )}
       </AnimatePresence>

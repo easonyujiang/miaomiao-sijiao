@@ -4,37 +4,57 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion } from 'motion/react'
 import { useVoice } from '@/context/voice-context'
 import { buildContentCommands } from '@/lib/voice-commands'
-import { CATEGORIES, MOCK_CONTENT, type ContentItem } from '@/lib/community-data'
+import { CATEGORIES, type ContentItem } from '@/lib/community-data'
+import { fetchTopics, topicToContentItem, type ApiTopic } from '@/lib/community-api'
 import { ContentCard } from './content-card'
 
 interface ContentFeedProps {
-  onOpenDetail: (item: ContentItem) => void
+  onOpenDetail: (item: ContentItem, topicId: string) => void
 }
 
 export function ContentFeed({ onOpenDetail }: ContentFeedProps) {
   const { registerCommands } = useVoice()
-  const [activeCategory, setActiveCategory] = useState('all')
+  const [activeCategory, setActiveCategory] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [items, setItems] = useState<ContentItem[]>([])
+  const [topicIds, setTopicIds] = useState<string[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
   const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map())
 
-  // Filter content by category
-  const filtered =
-    activeCategory === 'all'
-      ? MOCK_CONTENT
-      : MOCK_CONTENT.filter((item) => item.category === activeCategory)
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(false)
+    fetchTopics(activeCategory || undefined)
+      .then((res) => {
+        if (cancelled) return
+        const mapped = res.items.map(topicToContentItem)
+        const ids = res.items.map((t) => t.id)
+        setItems(mapped)
+        setTopicIds(ids)
+        setSelectedIndex(0)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setError(true)
+        setItems([])
+        setTopicIds([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [activeCategory])
 
-  // Keep selectedIndex in bounds when filter changes
+  const filtered = items
   const safeIndex = Math.min(selectedIndex, Math.max(0, filtered.length - 1))
 
-  // Scroll selected card into view
   useEffect(() => {
     const el = cardRefs.current.get(safeIndex)
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-    }
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [safeIndex])
 
-  // Voice commands for content navigation
   const handleNext = useCallback(() => {
     setSelectedIndex((prev) => Math.min(prev + 1, filtered.length - 1))
   }, [filtered.length])
@@ -45,21 +65,14 @@ export function ContentFeed({ onOpenDetail }: ContentFeedProps) {
 
   const handleOpen = useCallback(() => {
     if (filtered[safeIndex]) {
-      onOpenDetail(filtered[safeIndex])
+      onOpenDetail(filtered[safeIndex], topicIds[safeIndex])
     }
-  }, [filtered, safeIndex, onOpenDetail])
+  }, [filtered, safeIndex, topicIds, onOpenDetail])
 
-  const handleBack = useCallback(() => {
-    // No-op in feed view
-  }, [])
+  const handleBack = useCallback(() => {}, [])
 
   useEffect(() => {
-    const cmds = buildContentCommands(
-      handleNext,
-      handlePrev,
-      handleOpen,
-      handleBack,
-    )
+    const cmds = buildContentCommands(handleNext, handlePrev, handleOpen, handleBack)
     const unregister = registerCommands(cmds)
     return unregister
   }, [registerCommands, handleNext, handlePrev, handleOpen, handleBack])
@@ -99,27 +112,43 @@ export function ContentFeed({ onOpenDetail }: ContentFeedProps) {
         </span>
       </motion.div>
 
+      {/* Loading */}
+      {loading && (
+        <div className="text-center py-12 text-neutral-400">
+          <p className="text-sm">加载中…</p>
+        </div>
+      )}
+
+      {/* Error */}
+      {error && !loading && (
+        <div className="text-center py-12 text-neutral-400">
+          <p className="text-4xl mb-3">🔌</p>
+          <p className="text-sm">社区服务暂不可用</p>
+          <p className="text-xs text-neutral-300 mt-1">请确认后端已启动</p>
+        </div>
+      )}
+
       {/* Content cards */}
-      <div className="space-y-3">
-        {filtered.map((item, index) => (
-          <div
-            key={item.id}
-            ref={(el) => {
-              if (el) cardRefs.current.set(index, el)
-            }}
-          >
-            <ContentCard
-              item={item}
-              isSelected={index === safeIndex}
-              onSelect={() => setSelectedIndex(index)}
-              onOpen={() => onOpenDetail(item)}
-            />
-          </div>
-        ))}
-      </div>
+      {!loading && !error && (
+        <div className="space-y-3">
+          {filtered.map((item, index) => (
+            <div
+              key={item.id}
+              ref={(el) => { if (el) cardRefs.current.set(index, el) }}
+            >
+              <ContentCard
+                item={item}
+                isSelected={index === safeIndex}
+                onSelect={() => setSelectedIndex(index)}
+                onOpen={() => onOpenDetail(item, topicIds[index])}
+              />
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Empty state */}
-      {filtered.length === 0 && (
+      {!loading && !error && filtered.length === 0 && (
         <div className="text-center py-12 text-neutral-400">
           <p className="text-4xl mb-3">📭</p>
           <p className="text-sm">该分类暂无内容</p>

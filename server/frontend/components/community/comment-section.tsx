@@ -5,35 +5,24 @@ import { motion } from 'motion/react'
 import { MessageCircle, ChevronUp } from 'lucide-react'
 import { useVoice } from '@/context/voice-context'
 import { buildCommentCommands } from '@/lib/voice-commands'
-import { getCommentsForContent, type Comment } from '@/lib/community-data'
+import type { Comment } from '@/lib/community-data'
 import { CommentItem } from './comment-item'
 
 interface CommentSectionProps {
-  contentId: string
+  comments: Comment[]
   commentCount: number
   visible: boolean
   onClose: () => void
 }
 
-export function CommentSection({
-  contentId,
-  commentCount,
-  visible,
-  onClose,
-}: CommentSectionProps) {
+export function CommentSection({ comments, commentCount, visible, onClose }: CommentSectionProps) {
   const { registerCommands } = useVoice()
   const [allExpanded, setAllExpanded] = useState(false)
-  const [comments, setComments] = useState<Comment[]>([])
 
-  useEffect(() => {
-    setComments(getCommentsForContent(contentId))
-  }, [contentId])
-
-  // Register comment voice commands
   useEffect(() => {
     if (!visible) return
     const cmds = buildCommentCommands(
-      () => {}, // "open" — already open
+      () => {},
       onClose,
       () => setAllExpanded(true),
       () => setAllExpanded(false),
@@ -51,7 +40,6 @@ export function CommentSection({
       exit={{ opacity: 0, y: 20 }}
       className="border-t border-neutral-200 pt-4"
     >
-      {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <MessageCircle className="h-4 w-4 text-neutral-500" />
@@ -76,16 +64,15 @@ export function CommentSection({
         </div>
       </div>
 
-      {/* Comment list */}
       <div className="divide-y divide-neutral-100">
         {comments.map((comment) => (
-          <CommentItem
-            key={comment.id}
-            comment={comment}
-            allExpanded={allExpanded}
-          />
+          <CommentItem key={comment.id} comment={comment} allExpanded={allExpanded} />
         ))}
       </div>
+
+      {comments.length === 0 && (
+        <p className="text-center text-sm text-neutral-400 py-6">暂无评论，来说两句吧</p>
+      )}
     </motion.div>
   )
 }
