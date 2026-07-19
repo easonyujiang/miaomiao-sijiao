@@ -10,9 +10,7 @@
   "host_permissions": [
     "https://www.douyin.com/*",
     "https://www.bilibili.com/*",
-    "http://8.130.190.169:8000/*",
-    "https://8.130.190.169/*",
-    "https://miaomiao-cat.duckdns.org/*"
+    "http://8.130.190.169:8000/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -23,6 +21,7 @@
         "https://www.douyin.com/video/*"
       ],
       "js": [
+        "config.js",
         "lib/howler.min.js",
         "lib/lottie_light.min.js",
         "lib/confetti.browser.js",
@@ -41,6 +40,7 @@
         "https://www.bilibili.com/video/*"
       ],
       "js": [
+        "config.js",
         "lib/howler.min.js",
         "lib/lottie_light.min.js",
         "lib/confetti.browser.js",

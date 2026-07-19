@@ -3,7 +3,7 @@
  * 注入 douyin.com/video/* 页面
  */
 
-const API_BASE = "http://8.130.190.169:8000";
+var API_BASE = MiaoConfig.DEFAULT_API_BASE;
 const PLATFORM = "douyin";
 
 // ── 状态 ────────────────────────────────────────────────
@@ -298,7 +298,7 @@ function bindEvents(root) {
   }
 
   root.querySelector("#mm-site")?.addEventListener("click", () => {
-    const siteUrl = "https://miaomiao-cat.duckdns.org";
+    const siteUrl = MiaoConfig.DEFAULT_SITE_URL;
     const params = state.videoId ? `?video_id=${encodeURIComponent(state.videoId)}` : "";
     window.open(`${siteUrl}/community${params}`, "_blank");
   });
@@ -418,6 +418,19 @@ function appendCatResponse(data) {
     div.appendChild(ts);
   }
 
+  // 社区讨论链接：跳网站对应帖子
+  if (Array.isArray(data.topics) && data.topics.length) {
+    data.topics.forEach((tp) => {
+      const link = document.createElement("div");
+      link.className = "mm-timestamp-ref";
+      link.textContent = `💬 ${tp.title}（${tp.reply_count} 回复）`;
+      link.addEventListener("click", () => {
+        window.open(`${MiaoConfig.DEFAULT_SITE_URL}/community?topic=${encodeURIComponent(tp.id)}`, "_blank");
+      });
+      div.appendChild(link);
+    });
+  }
+
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
 }
@@ -453,7 +466,7 @@ async function sendMessage(text) {
   removeTyping();
 
   if (!result) {
-    appendMessage("连不上本地服务（localhost:8000），请先启动后端 `python run.py`", "cat");
+    appendMessage("连不上妙喵服务器，请检查网络或插件设置中的服务器地址", "cat");
     return;
   }
   appendCatResponse(result);
@@ -528,6 +541,7 @@ function formatTime(sec) {
 
 // ── 初始化 ─────────────────────────────────────────────
 function init() {
+  MiaoConfig.getApiBase((base) => { API_BASE = base; });
   buildUI();
   setCatState("idle");
   checkPage();

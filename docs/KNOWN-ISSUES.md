@@ -48,12 +48,38 @@
 - **现象**: `extension/content/bilibili.js` 和 `douyin.js` 中 `API_BASE` 固定为 `http://localhost:8000`，无法连接远程服务器
 - **修复**: 改为 `http://8.130.190.169:8000`，并在 `manifest.json` 的 `host_permissions` 中声明服务器域名
 
+### BUG-011: lesson_attempts 被级联删除（2026-07-20）
+- **现象**: 生产环境 `save_attempt()` 写入后新连接读不到，学习报告看不到真实错题
+- **原因**: `persist_session` 用 `INSERT OR REPLACE`，REPLACE 先 DELETE 旧行，触发 `lesson_attempts` 的 `ON DELETE CASCADE`；且 quiz_submit 通过后紧接着第二次 persist，刚写入的 attempt 立刻被清掉。本地测试被报告的 step_results 兜底掩盖
+- **修复**: `store.py` 改 UPSERT（`ON CONFLICT(id) DO UPDATE`）；新增回归测试 `test_attempts_survive_session_save`
+- **备注**: 此前猜测的"WAL 不一致"不是根因——WAL 是文件级持久属性，一次设置全连接生效
+
+### BUG-012: 网站妙喵读不到字幕 JSON（2026-07-20）
+- **现象**: 视频摘要质量差、LLM 幻觉（编造字幕外案例）
+- **原因**: `repository.get_subtitle_text` 用 `parents[3]` 定位字幕目录，解析到仓库根目录下不存在的路径，永远走 video_segments 残缺兜底
+- **修复**: 改走 `config.SUBTITLE_DIR`；字幕文本加 `[mm:ss]` 真实时间戳前缀
+
+### BUG-013: 网站首页空白页（2026-07-20）
+- **现象**: 访问 `/` 显示空白；妙喵 action 兜底跳转也跳到空白页
+- **原因**: `output:'export'` 静态导出不支持 redirects，且 `app/page.tsx` 返回 null
+- **修复**: page.tsx 改客户端跳转 `/community`；pet-assistant runAction 补全 diary/blog/community target，兜底跳 `/community`
+
+### BUG-014: LLM 调用失败完全不可观测（2026-07-20）
+- **现象**: LLM 故障时接口静默降级，日志无任何记录
+- **修复**: `llm/client.py` 非 200 与异常均记 warning 日志；`core/logging.py` SQLite handler 补 `check_same_thread=False`（此前跨线程 emit 静默失败）、路径兜底改走 config
+
+### BUG-015 (EXT): 通关文案硬编码 + 地址硬编码（2026-07-20，原 ISSUE-001）
+- **现象**: 通关固定显示"罗翔老师的正当防卫精讲"；服务器地址/站点 URL 硬编码 5 处含已弃用的 duckdns 域名
+- **修复**: 通关文案改用课程标题；新增 `extension/config.js` + popup 服务器地址设置（chrome.storage），manifest 清理无效权限
+
 ## 已知问题（待修复）
 
-### ISSUE-001: 通关文案硬编码
-- **文件**: `extension/content/bilibili.js`
-- **描述**: 全部通关时显示固定文案 "罗翔老师的正当防卫精讲你已掌握"，应改为动态课程标题
-- **优先级**: 低 — 目前只有一门课，影响有限
+### ISSUE-009: B站字幕接口需要登录 cookie（2026-07-20 记录，暂缓）
+- **文件**: `server/scripts/fetch_subtitle.py`
+- **描述**: 脚本可正常跑通 pagelist/player 接口，但 B站对字幕列表接口要求登录态，无 cookie 时返回空字幕列表
+- **现状**: 按"难解问题写入文档并跳过"处理。解法：从浏览器复制 SESSDATA，用 `python scripts/fetch_subtitle.py <BV号> --cookie "SESSDATA=xxx"` 抓取
+- **备选预案**: 无 CC 字幕的视频可本地 ASR（yt-dlp 下音频 → ffmpeg 切 60s 片 → 百度短语音 ASR → 按时间戳拼接），Demo 阶段暂不实现
+- **注意**: 现有 `data/miaomiao/subtitles/BV1mJ4m147PG.json` 是手工策展的，Demo 演示不受影响
 
 ### ISSUE-002: 抖音端缺少课程模式
 - **文件**: `extension/content/douyin.js`

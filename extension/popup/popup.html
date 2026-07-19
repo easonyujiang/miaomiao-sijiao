@@ -77,6 +77,35 @@
       color: #e06a8f;
     }
     .mm-popup-btn.secondary:hover { background: #fff0f5; }
+    .mm-popup-config {
+      width: 100%;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #ffe4ee;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .mm-popup-config label {
+      font-size: 11px;
+      color: #8a7a85;
+    }
+    .mm-popup-config input {
+      width: 100%;
+      padding: 5px 8px;
+      border: 1px solid #ffd6e4;
+      border-radius: 8px;
+      font-size: 11px;
+      color: #4a3340;
+      outline: none;
+    }
+    .mm-popup-config input:focus { border-color: #ff96b4; }
+    #mm-popup-config-status {
+      font-size: 10px;
+      color: #7bc47f;
+      text-align: center;
+      min-height: 12px;
+    }
   </style>
 </head>
 <body>
@@ -89,6 +118,13 @@
     <button id="mm-popup-summon" class="mm-popup-btn">🐾 召唤当前页面</button>
     <button id="mm-popup-site" class="mm-popup-btn secondary">🏠 访问个人网站</button>
   </div>
+  <div class="mm-popup-config">
+    <label for="mm-popup-api-base">服务器地址</label>
+    <input id="mm-popup-api-base" type="text" placeholder="http://8.130.190.169:8000" />
+    <button id="mm-popup-save-config" class="mm-popup-btn secondary">保存</button>
+    <div id="mm-popup-config-status"></div>
+  </div>
+  <script src="../config.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

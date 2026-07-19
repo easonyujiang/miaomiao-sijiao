@@ -184,7 +184,7 @@ sudo systemctl status miaomiao.service
 | `EWA_DATA_DIR` | `./data` | 数据根目录 |
 | `EWA_SITE_DB_PATH` | `./data/miaomiao.db` | SQLite 数据库路径 |
 | `EWA_SITE_SCHEMA_PATH` | `./docs/schema.sql` | 数据库建表 SQL |
-| `NEXT_PUBLIC_SITE_SLUG` | `miaomiao` | 默认博主 slug |
+| `NEXT_PUBLIC_SITE_SLUG` | `ashley` | 默认博主 slug（需与种子数据一致） |
 
 ## 反向代理配置
 

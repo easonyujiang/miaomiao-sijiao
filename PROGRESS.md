@@ -1,6 +1,49 @@
 # 妙喵私教 — 项目进度
 
-> 最后更新：2026-07-19
+> 最后更新：2026-07-20
+
+---
+
+## 2026-07-20 维护性更新
+
+**后端修复（29 个测试全过）**
+- 🔴 BUG-011 根治：`persist_session` 的 INSERT OR REPLACE 触发 ON DELETE CASCADE 清空 lesson_attempts → 改 UPSERT，学习报告恢复真实错题数据源（含回归测试）
+- 🔴 BUG-012：字幕路径 `parents[3]` 错误导致永远读不到字幕 JSON → 改走 `config.SUBTITLE_DIR`，字幕加 `[mm:ss]` 真实时间戳
+- 妙喵意图判断：关键词快路径收紧（去掉"内容/介绍/是什么"裸词）+ LLM 意图分类兜底（video_query/diary/other），"你有什么看法"类问题不再错分 FAQ
+- 摘要 prompt 加固：只允许引用字幕原文、时间戳必须真实、禁止编字幕外案例；带 video_id 上下文时可直接总结当前视频
+- BUG-014：LLM 调用失败补日志；审计日志 handler 补 `check_same_thread=False`；slug 默认值统一为 `ashley`
+- 新增 `scripts/fetch_subtitle.py`：B站 CC 字幕 → 项目字幕格式（⚠️ 需 SESSDATA cookie，见 KNOWN-ISSUES ISSUE-009）
+
+**前端修复**
+- BUG-013：首页空白页 → 客户端跳转 /community；runAction 补全 diary/blog/community target
+- 语音按钮补 `navigator.mediaDevices` 检测；清理 5 个死代码文件；`NEXT_PUBLIC_SITE_URL` 默认 `http://8.130.190.169:8000`（部署脚本构建时注入）
+
+**插件修复**
+- 新增 `config.js` + popup 服务器地址设置（chrome.storage）；清除全部 duckdns 引用与无效 manifest 权限
+- 通关文案改用课程标题；语音文件名按 mimeType 生成；错误提示不再误导 localhost
+
+**入口策略（Demo 阶段定稿）**
+- 文字：`http://8.130.190.169:8000`；网页端语音：`https://8.130.190.169`（自签名，接受一次警告）；插件端语音：现状可用
+- nginx/systemd 配置收进 `infra/`
+
+**部署与线上验证（已完成）**
+- 新增 `deploy-backend.ps1`（后端一键部署）/ `verify-deploy.ps1`（部署验证）/ `test-live-chat.ps1`（线上聊天实测）
+- 线上排障：生产库 videos 表缺罗翔视频行（字幕/课程是文件资产，website 查询走 DB），已插入 `BV1mJ4m147PG` 记录
+- 线上实测三问全过：看法类提问 → video_query 基于字幕的观点回答；video_id 上下文 → 当前视频摘要；日记意图不受影响
+- ⚠️ 经验：字幕 JSON、课程 JSON、videos 表行是三条独立数据通道，新视频上线时三者都要备齐
+
+**管理后端重构 Part 1（已上线）**
+- 新增 `admin/assets.py`：视频资产三通道统一管理（合并视图 / 幂等 upsert / 格式校验 / 级联删除）
+- 新增 6 个 `/api/admin/assets/*` 端点；`import/video` 路径走 config；auth 加固（严格 Bearer + compare_digest）
+- 计划文档：`docs/PLAN-ADMIN-REFACTOR.md`（Part 2/3/4 待做）
+- 新增 10 个测试，全量 39 passed
+
+**问答 → 精确跳转闭环（已上线）**
+- 网站妙喵：问"有没有相关讨论"→ community 意图 + open_topic 按钮直达帖子（社区页新增 `?topic=id` 深链）
+- 网站妙喵：视频摘要必带 `[mm:ss]` 时间戳，seek 按钮自动落到首个引用时间点（如"跳到 13:00"）
+- 插件端：ext chat 新增社区讨论检索层，回答附帖子链接按钮（B站/抖音脚本均已支持）
+- 顺带修复：community_topics 缺 video_id 列（community API 按视频过滤会 500 的潜伏 bug），schema + 幂等迁移补齐
+- 新增 4 个测试，全量 43 passed
 
 ---
 

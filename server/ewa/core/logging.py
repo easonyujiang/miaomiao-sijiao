@@ -29,7 +29,9 @@ _initialized: bool = False
 def get_db_path() -> str:
     global _db_path
     if not _db_path:
-        _db_path = os.getenv("EWA_SITE_DB_PATH", "data/miaomiao.db")
+        from ewa.config import SITE_DB_PATH
+
+        _db_path = os.getenv("EWA_SITE_DB_PATH") or str(SITE_DB_PATH)
     return _db_path
 
 
@@ -48,7 +50,9 @@ class SQLiteLogHandler(logging.Handler):
 
     def _get_connection(self) -> sqlite3.Connection:
         if self._connection is None:
-            self._connection = sqlite3.connect(get_db_path(), timeout=5.0)
+            # check_same_thread=False：日志会在请求线程/后台任务线程触发，
+            # 连接由 Handler.handle 的锁串行化保护，跨线程复用是安全的。
+            self._connection = sqlite3.connect(get_db_path(), timeout=5.0, check_same_thread=False)
             self._connection.execute("PRAGMA journal_mode=WAL")
         return self._connection
 

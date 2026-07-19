@@ -404,6 +404,7 @@ CREATE TABLE IF NOT EXISTS community_topics (
     CHECK (category IN ('question', 'discussion', 'showcase', 'feedback', 'other')),
   author_name TEXT NOT NULL DEFAULT '匿名用户',
   tags_json TEXT NOT NULL DEFAULT '[]',
+  video_id TEXT,
   view_count INTEGER NOT NULL DEFAULT 0,
   reply_count INTEGER NOT NULL DEFAULT 0,
   like_count INTEGER NOT NULL DEFAULT 0,

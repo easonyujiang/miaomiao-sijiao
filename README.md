@@ -58,7 +58,7 @@ npm run dev                   # → http://localhost:3000
 2. 加载已解压的扩展程序 → 选择 `extension/` 目录
 3. 打开 B站视频页，妙喵面板自动出现
 
-> 默认插件连接 `http://localhost:8000`。若连接远程服务器，修改 `extension/content/bilibili.js` 和 `douyin.js` 中的 `API_BASE`，并在 `manifest.json` 的 `host_permissions` 中添加对应域名。
+> 默认插件连接 `http://8.130.190.169:8000`。如需修改，点击插件图标在 popup 底部的"服务器地址"设置中修改（存 chrome.storage，刷新页面生效）。
 
 ## 技术栈
 
@@ -67,7 +67,7 @@ npm run dev                   # → http://localhost:3000
 | 后端 | Python FastAPI + SQLite + Uvicorn |
 | 前端 | Next.js 15 + React 19 + Tailwind CSS + shadcn/ui |
 | LLM | DeepSeek / Kimi (Moonshot) |
-| 语音 | 百度短语音识别 (Baidu ASR) + Web Speech API（网页端） |
+| 语音 | MediaRecorder 录音 + 百度短语音识别 (Baidu ASR，服务端转写) |
 | 插件 | Chrome Extension MV3 + Lottie + howler.js + MediaRecorder |
 
 ## 主要 API
@@ -86,7 +86,7 @@ npm run dev                   # → http://localhost:3000
 
 ## 语音功能
 
-- **网页端**：妙喵助手面板支持按住麦克风说话，走百度 ASR 转文字后聊天。
+- **网页端**：妙喵助手面板支持按住麦克风说话，走百度 ASR 转文字后聊天。注意录音要求安全上下文：生产环境请用 `https://8.130.190.169`（自签名证书，接受一次警告即可），`http://` 裸 IP 入口下麦克风不可用。
 - **插件端**：B站/抖音内容脚本的输入区支持按住 🎤 录音，通过 `background.js` 上传到后端 `/api/speech-to-text`，识别结果自动作为答案或问题发送。
 
 ## 文档

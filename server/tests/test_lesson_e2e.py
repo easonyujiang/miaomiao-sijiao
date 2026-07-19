@@ -484,6 +484,41 @@ class TestQuizSubmit:
         assert data["attempt_num"] == 1
         assert data["matched_count"] >= data["required_count"]
 
+    def test_attempts_survive_session_save(self, client):
+        """回归：attempts 必须存活于后续 save_session。
+
+        历史上 persist_session 用 INSERT OR REPLACE，DELETE+INSERT 触发
+        lesson_attempts 的 ON DELETE CASCADE，导致答题记录被级联清空。
+        """
+        from ewa.extension.store import LessonStore
+
+        session = "attempts_persist_test"
+        # 答对 step_1（通过后会再次 persist_session 推进进度）
+        r = client.post("/api/lesson/quiz_submit", json={
+            "session_id": session,
+            "lesson_id": "lesson_luoxiang_001",
+            "step_id": "step_1",
+            "answer": "不成立，这是假想防卫的情形，客观上没有现实的不法侵害，属于事实认识错误",
+            "current_time_sec": 60,
+        })
+        assert r.json()["passed"] is True
+
+        attempts = LessonStore.load_attempts(session)
+        assert len(attempts) == 1
+        assert attempts[0]["step_id"] == "step_1"
+
+        # 再提交 step_2，step_1 的 attempts 不应被级联删除
+        client.post("/api/lesson/quiz_submit", json={
+            "session_id": session,
+            "lesson_id": "lesson_luoxiang_001",
+            "step_id": "step_2",
+            "answer": "随便答答",
+            "current_time_sec": 120,
+        })
+        attempts = LessonStore.load_attempts(session)
+        step_ids = {a["step_id"] for a in attempts}
+        assert "step_1" in step_ids and "step_2" in step_ids
+
     def test_wrong_answer_fails(self, client):
         r = client.post("/api/lesson/quiz_submit", json={
             "session_id": "wrong_test",
@@ -561,6 +596,46 @@ class TestStatePersistence:
         })
         r = client.get(f"/api/lesson/state/{session}/lesson_luoxiang_001")
         assert r.json()["persisted"] is True
+
+    def test_lesson_report_after_quiz_submission(self, client):
+        """提交答题后，学习分析报告应包含已完成步骤和尝试记录。"""
+        session = "report_test"
+        r1 = client.post("/api/lesson/quiz_submit", json={
+            "session_id": session, "lesson_id": "lesson_luoxiang_001",
+            "step_id": "step_1",
+            "answer": "不成立，这是假想防卫，客观上没有现实的不法侵害，属于事实认识错误",
+            "current_time_sec": 60,
+        })
+        assert r1.status_code == 200
+        assert r1.json()["passed"] is True
+
+        r2 = client.get(f"/api/lesson/report/{session}/lesson_luoxiang_001")
+        assert r2.status_code == 200
+        report = r2.json()
+        assert report["total_stars"] == 3
+        assert "step_1" in report["completed_steps"]
+        assert report["completion_rate"] == 0.2
+
+    def test_lesson_report_shows_weak_points(self, client):
+        """答错的步骤应出现在薄弱点里。"""
+        session = "report_weak_test"
+        r1 = client.post("/api/lesson/quiz_submit", json={
+            "session_id": session, "lesson_id": "lesson_luoxiang_001",
+            "step_id": "step_1",
+            "answer": "我不知道",
+            "current_time_sec": 60,
+        })
+        assert r1.status_code == 200
+        assert r1.json()["passed"] is False
+
+        r2 = client.get(f"/api/lesson/report/{session}/lesson_luoxiang_001")
+        assert r2.status_code == 200
+        report = r2.json()
+        assert report["total_stars"] == 0
+        assert report["completed_steps"] == []
+        assert report["completion_rate"] == 0.0
+        assert any(w["step_id"] == "step_1" for w in report["weak_points"])
+        assert len(report["weak_points"]) > 0
 
 
 class TestExtAPI:

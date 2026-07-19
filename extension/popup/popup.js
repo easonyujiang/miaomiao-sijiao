@@ -1,5 +1,5 @@
-const SITE_URL = "https://miaomiao-cat.duckdns.org";
-const FALLBACK_VIDEO_URL = "https://www.bilibili.com/video/BV1mJ4m147PG";
+const SITE_URL = MiaoConfig.DEFAULT_SITE_URL;
+const FALLBACK_VIDEO_URL = MiaoConfig.DEFAULT_SITE_URL;
 
 function closePopup() {
   window.close();
@@ -38,4 +38,24 @@ document.getElementById("mm-popup-cat").addEventListener("click", async () => {
     chrome.tabs.create({ url: FALLBACK_VIDEO_URL });
   });
   closePopup();
+});
+
+// ── 服务器地址设置 ─────────────────────────────────────
+const apiBaseInput = document.getElementById("mm-popup-api-base");
+const configStatus = document.getElementById("mm-popup-config-status");
+
+MiaoConfig.getApiBase((base) => {
+  apiBaseInput.value = base;
+});
+
+document.getElementById("mm-popup-save-config").addEventListener("click", () => {
+  const value = apiBaseInput.value.trim().replace(/\/+$/, "");
+  if (!value) {
+    configStatus.textContent = "请输入服务器地址";
+    return;
+  }
+  chrome.storage.sync.set({ api_base: value, site_url: value }, () => {
+    configStatus.textContent = "已保存，刷新页面后生效";
+    setTimeout(() => { configStatus.textContent = ""; }, 2000);
+  });
 });

@@ -4,7 +4,7 @@
  * 复用与抖音脚本相同的核心逻辑，直接读取B站字幕
  */
 
-const API_BASE = "http://8.130.190.169:8000";
+var API_BASE = MiaoConfig.DEFAULT_API_BASE;
 const PLATFORM = "bilibili";
 
 let state = {
@@ -196,6 +196,7 @@ async function submitQuiz(answer, stepId) {
 
 function startSession(lessonData) {
   state.lessonId = lessonData.lesson_id;
+  state.lessonTitle = lessonData.title || null;
   state.sessionId = "session_" + Date.now();
   state.lessonMode = true;
   state.currentStep = lessonData.steps[0];
@@ -327,12 +328,72 @@ async function submitAndShow(answer, step) {
     }, 800);
   } else if (result.passed && !result.next_step) {
     setTimeout(() => {
-      appendMessage("🎉 全部通关！罗翔老师的正当防卫精讲你已掌握，小鱼干满满！", "cat");
+      const passText = state.lessonTitle
+        ? `「${state.lessonTitle}」你已掌握`
+        : "本课程全部通关";
+      appendMessage(`🎉 全部通关！${passText}，小鱼干满满！`, "cat");
       setCatState("levelup");
       MiaoSound.play("levelup");
       fireConfetti(3);
+      // 自动弹出学习分析报告
+      void fetchAndShowLessonReport();
     }, 800);
   }
+}
+
+async function fetchLessonReport() {
+  if (!state.sessionId || !state.lessonId) return null;
+  try {
+    const res = await fetchWithTimeout(
+      `${API_BASE}/api/lesson/report/${encodeURIComponent(state.sessionId)}/${encodeURIComponent(state.lessonId)}`,
+      {},
+      10000,
+    );
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchAndShowLessonReport() {
+  showTyping();
+  const report = await fetchLessonReport();
+  removeTyping();
+  if (!report || report.error) {
+    appendMessage("报告生成失败，但通关数据已经保存啦，可以继续加油喵~", "cat");
+    return;
+  }
+  showLessonReport(report);
+}
+
+function showLessonReport(report) {
+  const c = document.getElementById("mm-messages");
+  if (!c) return;
+
+  const card = document.createElement("div");
+  card.className = "mm-msg mm-cat mm-report-card";
+
+  const text = document.createElement("pre");
+  text.textContent = report.report_text || "🎉 学习报告";
+  card.appendChild(text);
+
+  // 推荐回看按钮
+  if (report.review_recommendations && report.review_recommendations.length > 0) {
+    const btns = document.createElement("div");
+    btns.className = "mm-report-actions";
+    for (const rec of report.review_recommendations) {
+      const btn = document.createElement("button");
+      btn.className = "mm-quick-btn";
+      const sec = Math.round(rec.seek_ms / 1000);
+      btn.textContent = `⏪ ${rec.title} (${formatTime(sec)})`;
+      btn.addEventListener("click", () => seekTo(sec));
+      btns.appendChild(btn);
+    }
+    card.appendChild(btns);
+  }
+
+  c.appendChild(card);
+  c.scrollTop = c.scrollHeight;
 }
 
 // ── 语音输入 ─────────────────────────────────────────────
@@ -535,7 +596,7 @@ function bindEvents(root) {
   }
 
   root.querySelector("#mm-site")?.addEventListener("click", () => {
-    const siteUrl = "https://miaomiao-cat.duckdns.org";
+    const siteUrl = MiaoConfig.DEFAULT_SITE_URL;
     const params = state.videoId ? `?video_id=${encodeURIComponent(state.videoId)}` : "";
     window.open(`${siteUrl}/community${params}`, "_blank");
   });
@@ -587,6 +648,18 @@ function appendCatResponse(data) {
     ts.addEventListener("click", () => seekTo(data.seek_to_sec));
     div.appendChild(ts);
   }
+  // 社区讨论链接：跳网站对应帖子
+  if (Array.isArray(data.topics) && data.topics.length) {
+    data.topics.forEach((tp) => {
+      const link = document.createElement("div");
+      link.className = "mm-timestamp-ref";
+      link.textContent = `💬 ${tp.title}（${tp.reply_count} 回复）`;
+      link.addEventListener("click", () => {
+        window.open(`${MiaoConfig.DEFAULT_SITE_URL}/community?topic=${encodeURIComponent(tp.id)}`, "_blank");
+      });
+      div.appendChild(link);
+    });
+  }
   c.appendChild(div);
   c.scrollTop = c.scrollHeight;
 }
@@ -625,7 +698,7 @@ async function sendMessage(text) {
   const result = await chat(text, state.videoId, getCurrentTime());
   removeTyping();
   if (!result) {
-    appendMessage("连不上本地服务（localhost:8000），请先启动 `python run.py`", "cat");
+    appendMessage("连不上妙喵服务器，请检查网络或插件设置中的服务器地址", "cat");
     return;
   }
   appendCatResponse(result);
@@ -693,6 +766,7 @@ function checkPage() {
 }
 
 function init() {
+  MiaoConfig.getApiBase((base) => { API_BASE = base; });
   buildUI();
   setCatState("idle");
   checkPage();

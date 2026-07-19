@@ -28,9 +28,16 @@ else:
 def verify_token(request: Request) -> str:
     """验证请求中的 Bearer Token，返回 token 值或抛出 401。"""
     auth_header = request.headers.get("Authorization", "")
-    token = auth_header.replace("Bearer ", "").strip()
+    # 严格前缀判断（此前用 replace 会放过 "xxBearer yy" 这类畸形头）
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized — Header: Authorization: Bearer <token>",
+        )
+    token = auth_header[len("Bearer "):].strip()
 
-    if not token or token != _ADMIN_TOKEN:
+    # compare_digest：时序安全比较，避免逐字节短路泄露前缀信息
+    if not token or not secrets.compare_digest(token, _ADMIN_TOKEN):
         raise HTTPException(
             status_code=401,
             detail="Unauthorized — Header: Authorization: Bearer <token>",

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { AnimatePresence } from 'motion/react'
 import { ContentFeed } from '@/components/community/content-feed'
 import { ContentDetail } from '@/components/community/content-detail'
+import { fetchTopicDetail, topicToContentItem } from '@/lib/community-api'
 import { type ContentItem } from '@/lib/community-data'
 
 export default function CommunityPage() {
@@ -14,6 +15,16 @@ export default function CommunityPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     setInitialVideoId(params.get('video_id'))
+    // ?topic=id 深链：直接打开对应帖子详情（妙喵/插件跳转入口）
+    const topicId = params.get('topic')
+    if (topicId) {
+      fetchTopicDetail(topicId)
+        .then((d) => {
+          setDetailItem(topicToContentItem(d.topic))
+          setDetailTopicId(topicId)
+        })
+        .catch(() => {})
+    }
   }, [])
 
   return (

@@ -20,7 +20,11 @@ export function useVoiceChat(
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
 
-  const isSupported = typeof window !== 'undefined' && 'MediaRecorder' in window && 'navigator' in window
+  const isSupported =
+    typeof window !== 'undefined' &&
+    'MediaRecorder' in window &&
+    'navigator' in window &&
+    !!navigator.mediaDevices?.getUserMedia
 
   const stop = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {

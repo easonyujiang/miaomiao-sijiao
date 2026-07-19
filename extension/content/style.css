@@ -473,3 +473,31 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ── 学习分析报告卡片 ─────────────────────────── */
+.mm-report-card {
+  background: linear-gradient(135deg, #fff9fb, #fff0f5) !important;
+  border: 1px solid #ffd6e4 !important;
+  border-radius: 14px !important;
+  padding: 14px !important;
+  max-width: 92% !important;
+}
+.mm-report-card pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #4a3340;
+}
+.mm-report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.mm-report-actions .mm-quick-btn {
+  font-size: 11px;
+  padding: 4px 10px;
+}

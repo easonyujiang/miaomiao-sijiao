@@ -83,16 +83,21 @@ var MiaoVoice = {
     this.recorder = null;
   },
 
-  upload(blob, baseUrl = "http://8.130.190.169:8000") {
+  upload(blob, baseUrl = MiaoConfig.DEFAULT_API_BASE) {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.readAsDataURL(blob);
       reader.onloadend = () => {
         const base64 = reader.result.split(",")[1];
+        const filename = this.mimeType.includes("mp4")
+          ? "recording.mp4"
+          : this.mimeType.includes("webm")
+            ? "recording.webm"
+            : "recording.audio";
         chrome.runtime.sendMessage({
           type: "UPLOAD_AUDIO",
           audio: base64,
-          filename: "recording.webm",
+          filename,
           baseUrl,
         }, (res) => {
           if (!res || res.error) {

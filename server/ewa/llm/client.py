@@ -13,6 +13,9 @@ import re
 from typing import Any
 
 from ewa.config import MOONSHOT_API_KEY, DEEPSEEK_API_KEY
+from ewa.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 # 最小 API Key 长度（过滤 sk-... 等占位符）
 _MIN_KEY_LENGTH = 10
@@ -178,8 +181,9 @@ class LLMClient:
                 )
                 if res.status_code == 200:
                     return res.json()["choices"][0]["message"]["content"]
-        except Exception:
-            pass
+                logger.warning("LLM 返回非 200 [%s] %s: %s", res.status_code, api_url, res.text[:200])
+        except Exception as e:
+            logger.warning("LLM 调用失败 %s: %s", api_url, e)
 
         return None
 

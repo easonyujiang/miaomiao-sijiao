@@ -53,6 +53,11 @@ class SiteRepository:
             connection.execute("ALTER TABLE faqs ADD COLUMN sources_json TEXT NOT NULL DEFAULT '[]'")
         if "actions_json" not in columns:
             connection.execute("ALTER TABLE faqs ADD COLUMN actions_json TEXT NOT NULL DEFAULT '[]'")
+        # community_topics.video_id：community API 按视频过滤话题依赖此列，
+        # 老库（含生产）可能缺失，幂等补齐
+        topic_columns = {row[1] for row in connection.execute("PRAGMA table_info(community_topics)")}
+        if "video_id" not in topic_columns:
+            connection.execute("ALTER TABLE community_topics ADD COLUMN video_id TEXT")
 
     def _seed(self, connection: sqlite3.Connection) -> None:
         profile = (
@@ -453,6 +458,115 @@ class SiteRepository:
         for video in videos:
             video["segments"] = self._fetch_all("SELECT * FROM video_segments WHERE video_id = ? ORDER BY start_ms, id", (video["id"],))
         return videos
+
+    def search_videos(self, profile_id: str, keyword: str, limit: int = 5) -> list[dict[str, Any]]:
+        """根据关键字在收录视频中做模糊查询，返回候选列表。"""
+        keyword = keyword.strip().lower()
+        if not keyword:
+            return []
+
+        # 1. 精确匹配 video_id（BV 号 / 抖音号等）
+        videos = self._fetch_all(
+            "SELECT * FROM videos WHERE profile_id = ? AND visibility = 'public' AND lower(id) = ?",
+            (profile_id, keyword),
+        )
+
+        # 2. 子串匹配 title
+        like = f"%{keyword}%"
+        videos += self._fetch_all(
+            "SELECT * FROM videos WHERE profile_id = ? AND visibility = 'public' AND lower(title) LIKE ?",
+            (profile_id, like),
+        )
+
+        # 3. 相似度兜底
+        if len(videos) < limit:
+            all_videos = self._fetch_all(
+                "SELECT * FROM videos WHERE profile_id = ? AND visibility = 'public'",
+                (profile_id,),
+            )
+            from difflib import SequenceMatcher
+
+            def ratio(v: dict[str, Any]) -> float:
+                title = str(v.get("title", "")).lower()
+                vid = str(v.get("id", "")).lower()
+                return max(SequenceMatcher(None, keyword, title).ratio(), SequenceMatcher(None, keyword, vid).ratio())
+
+            all_videos.sort(key=ratio, reverse=True)
+            for v in all_videos:
+                if ratio(v) < 0.4:
+                    break
+                if not any(v["id"] == existing["id"] for existing in videos):
+                    videos.append(v)
+                if len(videos) >= limit:
+                    break
+
+        # 去重并限制
+        seen = set()
+        unique: list[dict[str, Any]] = []
+        for v in videos:
+            if v["id"] in seen:
+                continue
+            seen.add(v["id"])
+            v["segments"] = self._fetch_all("SELECT * FROM video_segments WHERE video_id = ? ORDER BY start_ms, id", (v["id"],))
+            unique.append(v)
+            if len(unique) >= limit:
+                break
+        return unique
+
+    def search_community_topics(self, profile_id: str, keyword: str, limit: int = 3) -> list[dict[str, Any]]:
+        """按关键词模糊检索社区话题（标题/内容 LIKE）。"""
+        like = f"%{keyword}%"
+        return self._fetch_all(
+            """SELECT id, title, content, category, author_name, video_id, reply_count, created_at
+               FROM community_topics
+               WHERE profile_id = ? AND (title LIKE ? OR content LIKE ?)
+               ORDER BY is_pinned DESC, created_at DESC LIMIT ?""",
+            (profile_id, like, like, limit),
+        )
+
+    @staticmethod
+    def _format_ms(ms: float) -> str:
+        """毫秒 → mm:ss 时间戳（用于字幕文本前缀）。"""
+        total = int(ms // 1000)
+        return f"{total // 60:02d}:{total % 60:02d}"
+
+    def get_subtitle_text(self, video_id: str) -> str | None:
+        """优先读取字幕 JSON，fallback 到视频片段摘要。"""
+        from ewa.config import SUBTITLE_DIR
+
+        subtitle_path = SUBTITLE_DIR / f"{video_id}.json"
+        if subtitle_path.exists():
+            try:
+                data = json.loads(subtitle_path.read_text(encoding="utf-8"))
+                entries = data.get("subtitles") or data.get("segments") or []
+                lines: list[str] = []
+                for entry in entries:
+                    text = entry.get("text", "").strip()
+                    if not text:
+                        continue
+                    start_sec = entry.get("start")
+                    if isinstance(start_sec, (int, float)):
+                        lines.append(f"[{self._format_ms(start_sec * 1000)}] {text}")
+                    else:
+                        lines.append(text)
+                return "\n".join(lines) if lines else None
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        # fallback 到视频片段
+        segments = self._fetch_all(
+            "SELECT title, summary, start_ms, end_ms FROM video_segments WHERE video_id = ? ORDER BY start_ms, id",
+            (video_id,),
+        )
+        if not segments:
+            return None
+        lines = []
+        for seg in segments:
+            text = seg.get("title") or seg.get("summary") or ""
+            text = text.strip()
+            if text:
+                lines.append(f"[{self._format_ms(seg['start_ms'])}] {text}")
+        return "\n".join(lines) if lines else None
 
     def video(self, video_id: str) -> dict[str, Any] | None:
         video = self._fetch_one("SELECT * FROM videos WHERE id = ? AND visibility = 'public'", (video_id,))

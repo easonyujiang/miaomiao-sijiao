@@ -169,11 +169,24 @@ class LessonStore:
         ensure_tables_once()
         try:
             with _get_db() as db:
+                # 注意：不能用 INSERT OR REPLACE —— REPLACE 会先 DELETE 旧行，
+                # 触发 lesson_attempts 的 ON DELETE CASCADE 清空答题记录。
                 db.execute(
-                    """INSERT OR REPLACE INTO lesson_sessions
+                    """INSERT INTO lesson_sessions
                        (id, profile_id, lesson_id, video_id, current_step_index,
                         total_stars, fish, growth, step_results_json, review_queue_json, updated_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)""",
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                       ON CONFLICT(id) DO UPDATE SET
+                        profile_id = excluded.profile_id,
+                        lesson_id = excluded.lesson_id,
+                        video_id = excluded.video_id,
+                        current_step_index = excluded.current_step_index,
+                        total_stars = excluded.total_stars,
+                        fish = excluded.fish,
+                        growth = excluded.growth,
+                        step_results_json = excluded.step_results_json,
+                        review_queue_json = excluded.review_queue_json,
+                        updated_at = CURRENT_TIMESTAMP""",
                     (
                         session_id, profile_id, lesson_id, video_id, current_step_index,
                         total_stars, fish, growth,
@@ -220,6 +233,40 @@ class LessonStore:
                 )
         except Exception:
             logger.exception("保存 attempt 时发生未预期错误")
+
+    @staticmethod
+    def load_attempts(session_id: str) -> list[dict]:
+        """按 step_id 和 attempt_num 顺序读取某 session 的所有答题尝试。"""
+        ensure_tables_once()
+        try:
+            with _get_db() as db:
+                rows = db.execute(
+                    """SELECT * FROM lesson_attempts
+                       WHERE session_id = ?
+                       ORDER BY step_id, attempt_num""",
+                    (session_id,),
+                ).fetchall()
+                return [
+                    {
+                        "id": row["id"],
+                        "step_id": row["step_id"],
+                        "attempt_num": row["attempt_num"],
+                        "answer": row["answer"],
+                        "score": row["score"],
+                        "matched_count": row["matched_count"],
+                        "required_count": row["required_count"],
+                        "passed": bool(row["passed"]),
+                        "stars_earned": row["stars_earned"],
+                        "cat_message": row["cat_message"] or "",
+                        "missed_points": json.loads(row["missed_points_json"] or "[]"),
+                        "wrong_points": json.loads(row["wrong_points_json"] or "[]"),
+                        "created_at": row["created_at"],
+                    }
+                    for row in rows
+                ]
+        except Exception:
+            logger.exception("加载 attempts 失败")
+            return []
 
 
 # ── Session 辅助 ─────────────────────────────────────────────

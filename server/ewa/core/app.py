@@ -71,7 +71,8 @@ def create_app(site_db_path: str | None = None) -> FastAPI:
         site_db_path: SQLite 数据库路径，默认从配置读取。
     """
     project_root = Path(__file__).resolve().parents[2]
-    default_slug = os.getenv("NEXT_PUBLIC_SITE_SLUG", "miaomiao")
+    # 默认 slug 需与 SiteRepository 种子数据一致（种子是 ashley）
+    default_slug = os.getenv("NEXT_PUBLIC_SITE_SLUG", "ashley")
 
     app = FastAPI(
         title="妙喵私教",

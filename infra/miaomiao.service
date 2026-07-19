@@ -1,0 +1,16 @@
+[Unit]
+Description=MiaoMiao SiJiao API Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/miaomiao/server
+ExecStart=/opt/miaomiao/server/.venv/bin/uvicorn ewa.api.main:app --host 0.0.0.0 --port 8000 --workers 2
+Restart=always
+RestartSec=5
+Environment=PATH=/opt/miaomiao/server/.venv/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=/opt/miaomiao/server/.env
+
+[Install]
+WantedBy=multi-user.target

@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useCallback, useEffect, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'motion/react'
 import { MessageCircle, Mic } from 'lucide-react'
@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { useVoiceChat } from '@/lib/useVoiceChat'
 
-type Message = { id: string; role: 'visitor' | 'pet'; text: string; action?: AgentAction }
+type Message = { id: string; role: 'visitor' | 'pet'; text: string; actions?: AgentAction[] }
 
 function ThinkingDots() {
   return (
@@ -37,23 +37,35 @@ export function PetAssistant({ profile }: { profile: SiteProfile }) {
   const [pending, setPending] = useState(false)
   const [messages, setMessages] = useState<Message[]>([{ id: 'welcome', role: 'pet', text: profile.pet.greeting }])
 
+  const getVideoContext = useCallback(() => {
+    if (typeof window === 'undefined') return { videoId: undefined, currentTimeMs: 0 }
+    const params = new URLSearchParams(window.location.search)
+    const videoId = params.get('video') || undefined
+    const t = parseInt(params.get('t') || '0', 10)
+    return { videoId, currentTimeMs: Number.isNaN(t) ? 0 : t * 1000 }
+  }, [])
+
   const onVoiceReady = useCallback(async (blob: Blob) => {
     setPending(true)
     try {
-      const response = await chatWithVoice(blob, { sessionId: session?.session_id })
+      const context = getVideoContext()
+      const response = await chatWithVoice(blob, {
+        sessionId: session?.session_id,
+        videoId: context.videoId,
+        currentTimeMs: context.currentTimeMs,
+      })
       const transcript = response.transcript || response.answer
-      const action = response.actions[0]
       setMessages((items) => [
         ...items,
         { id: generateId(), role: 'visitor', text: transcript },
-        { id: generateId(), role: 'pet', text: response.answer, action },
+        { id: generateId(), role: 'pet', text: response.answer, actions: response.actions },
       ])
     } catch {
       setMessages((items) => [...items, { id: generateId(), role: 'pet', text: '语音聊天服务暂时不可用，请用文字试试~' }])
     } finally {
       setPending(false)
     }
-  }, [session?.session_id])
+  }, [session?.session_id, getVideoContext])
 
   const voice = useVoiceChat(onVoiceReady)
 
@@ -74,10 +86,13 @@ export function PetAssistant({ profile }: { profile: SiteProfile }) {
     const faq = profile.faq.find((item) => text.includes(item.question.replace(/[？?]/g, '')))
       ?? profile.faq.find((item) => /视频|进度条|片段/.test(text) ? item.id === 'video-navigation' : /项目|作品/.test(text) ? item.id === 'project' : item.id === 'who')
       ?? profile.faq[0]
-    const action: AgentAction | undefined = faq.videoId
-      ? { type: faq.seekTo ? 'seek_video' : 'open_video', video_id: faq.videoId, time_ms: (faq.seekTo ?? 0) * 1000, label: faq.seekTo ? `跳到 ${faq.seekTo} 秒` : '打开内容' }
-      : faq.target ? { type: 'open_section', target: faq.target, label: '查看相关内容' } : undefined
-    return { text: faq.answer, action }
+    const actions: AgentAction[] = []
+    if (faq.videoId) {
+      actions.push({ type: faq.seekTo ? 'seek_video' : 'open_video', video_id: faq.videoId, time_ms: (faq.seekTo ?? 0) * 1000, label: faq.seekTo ? `跳到 ${faq.seekTo} 秒` : '打开内容' })
+    } else if (faq.target) {
+      actions.push({ type: 'open_section', target: faq.target, label: '查看相关内容' })
+    }
+    return { text: faq.answer, actions }
   }
 
   async function ask(raw: string) {
@@ -87,23 +102,36 @@ export function PetAssistant({ profile }: { profile: SiteProfile }) {
     setMessages((items) => [...items, { id: generateId(), role: 'visitor', text }])
     setPending(true)
     try {
-      const response = await chatWithPet(text, { sessionId: session?.session_id })
-      setMessages((items) => [...items, { id: generateId(), role: 'pet', text: response.answer, action: response.actions[0] }])
+      const context = getVideoContext()
+      const response = await chatWithPet(text, {
+        sessionId: session?.session_id,
+        videoId: context.videoId,
+        currentTimeMs: context.currentTimeMs,
+      })
+      setMessages((items) => [...items, { id: generateId(), role: 'pet', text: response.answer, actions: response.actions }])
     } catch {
       const answer = localAnswer(text)
-      setMessages((items) => [...items, { id: generateId(), role: 'pet', ...answer }])
+      setMessages((items) => [...items, { id: generateId(), role: 'pet', text: answer.text, actions: answer.actions }])
     } finally {
       setPending(false)
     }
   }
 
   function runAction(action: AgentAction) {
-    if ((action.type === 'seek_video' || action.type === 'open_video') && action.video_id) {
+    if (action.type === 'open_topic' && action.topic_id) {
+      router.push(`/community?topic=${encodeURIComponent(action.topic_id)}`)
+    } else if ((action.type === 'seek_video' || action.type === 'open_video') && action.video_id) {
       router.push(`/projects?video=${encodeURIComponent(action.video_id)}&t=${Math.round((action.time_ms ?? 0) / 1000)}`)
     } else if (action.target === 'projects' || action.target === 'videos') {
       router.push('/projects')
+    } else if (action.target === 'diary') {
+      router.push('/diary')
+    } else if (action.target === 'blog') {
+      router.push('/blog')
+    } else if (action.target === 'community') {
+      router.push('/community')
     } else {
-      router.push('/')
+      router.push('/community')
     }
     setOpen(false)
   }
@@ -142,7 +170,22 @@ export function PetAssistant({ profile }: { profile: SiteProfile }) {
         <DialogDescription className="mt-0.5 text-xs text-neutral-400">{status === 'online' ? 'Connected to knowledge base' : status === 'connecting' ? 'Connecting…' : 'Offline answers'}</DialogDescription>
       </div>
       <div className="flex-1 space-y-3 overflow-y-auto p-4">
-        {messages.map((message) => <div key={message.id} className={`flex ${message.role === 'visitor' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[88%] rounded-xl px-3 py-2 text-sm leading-6 ${message.role === 'visitor' ? 'bg-neutral-900 text-white' : 'bg-neutral-100'}`}><p>{message.text}</p>{message.action && <Button size="sm" variant="outline" className="mt-2 bg-white text-neutral-900" onClick={() => runAction(message.action!)}>{message.action.label} →</Button>}</div></div>)}
+        {messages.map((message) => (
+          <div key={message.id} className={`flex ${message.role === 'visitor' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[88%] rounded-xl px-3 py-2 text-sm leading-6 ${message.role === 'visitor' ? 'bg-neutral-900 text-white' : 'bg-neutral-100'}`}>
+              <p>{message.text}</p>
+              {message.actions && message.actions.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {message.actions.map((action, index) => (
+                    <Button key={index} size="sm" variant="outline" className="bg-white text-neutral-900" onClick={() => runAction(action)}>
+                      {action.label} →
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
         <AnimatePresence>
           {pending && (
             <motion.div

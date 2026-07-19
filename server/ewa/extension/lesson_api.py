@@ -17,6 +17,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from ewa.config import LESSONS_DIR
+from ewa.llm import LLMClient
 from ewa.extension.scoring import score_answer_with_llm
 from ewa.extension.store import LessonStore, get_session, persist_session
 from ewa.extension.feedback import build_cat_message, calc_cat_state
@@ -315,3 +316,165 @@ async def next_step(req: StepCompleteRequest) -> dict[str, Any]:
                 "review_queue": session["review_queue"],
             },
         }
+
+
+# ── 学习分析报告 ─────────────────────────────────────────────
+
+async def _build_lesson_report(session_id: str, lesson_id: str) -> dict[str, Any]:
+    """汇总 session 和 attempts，生成结构化学习报告。"""
+    session = get_session(session_id, lesson_id)
+    lesson = load_lesson(lesson_id)
+    attempts = LessonStore.load_attempts(session_id)
+
+    if not lesson:
+        return {"error": "lesson not found"}
+
+    steps = lesson.get("steps", [])
+    step_map = {s["id"]: s for s in steps}
+    step_results = session.get("step_results", {})
+
+    total_steps = len(steps)
+    completed_steps = [sid for sid, info in step_results.items() if info.get("passed")]
+    completion_rate = round(len(completed_steps) / max(total_steps, 1), 2)
+
+    # 按 step 聚合 attempts（如 attempts 表未持久化，会用 session step_results 兜底）
+    per_step: dict[str, dict] = {}
+    for a in attempts:
+        sid = a["step_id"]
+        per_step.setdefault(sid, {"attempts": 0, "passed": False, "scores": [], "wrong": set(), "missed": set()})
+        per_step[sid]["attempts"] += 1
+        per_step[sid]["scores"].append(a["score"])
+        if a["passed"]:
+            per_step[sid]["passed"] = True
+        per_step[sid]["wrong"].update(a.get("wrong_points", []))
+        per_step[sid]["missed"].update(a.get("missed_points", []))
+
+    # 如果 attempts 表没数据，用 session step_results 补齐 attempts 计数
+    for sid, info in step_results.items():
+        if sid not in per_step:
+            per_step[sid] = {
+                "attempts": info.get("attempts", 0),
+                "passed": info.get("passed", False),
+                "scores": [info.get("last_score", 0)] if info.get("last_score") else [],
+                "wrong": set(),
+                "missed": set(),
+            }
+        else:
+            per_step[sid]["attempts"] = max(per_step[sid]["attempts"], info.get("attempts", 0))
+            per_step[sid]["passed"] = per_step[sid]["passed"] or info.get("passed", False)
+
+    # 薄弱知识点：未通过 或 尝试次数 > 1 的步骤
+    weak_steps = []
+    for sid, info in per_step.items():
+        step = step_map.get(sid, {})
+        if not info["passed"] or info["attempts"] > 1:
+            weak_steps.append({
+                "step_id": sid,
+                "title": step.get("title", ""),
+                "start_ms": step.get("start_ms", 0),
+                "key_point": step.get("key_point", ""),
+                "attempts": info["attempts"],
+                "passed": info["passed"],
+                "wrong_points": list(info["wrong"]) or step.get("common_errors", [])[:2],
+                "missed_points": list(info["missed"]) or [step.get("key_point", "")[:80]] if step.get("key_point") else [],
+            })
+
+    # 推荐回看：取薄弱步骤的 start_ms（前 3 个）
+    review_recommendations = [
+        {"step_id": ws["step_id"], "title": ws["title"], "seek_ms": ws["start_ms"]}
+        for ws in sorted(weak_steps, key=lambda x: (not x["passed"], x["attempts"]), reverse=True)[:3]
+    ]
+
+    base_report = {
+        "completed": len(completed_steps) >= total_steps and total_steps > 0,
+        "completion_rate": completion_rate,
+        "total_steps": total_steps,
+        "completed_steps": completed_steps,
+        "total_stars": session["total_stars"],
+        "fish": session["fish"],
+        "growth": session["growth"],
+        "weak_points": [
+            {"step_id": ws["step_id"], "title": ws["title"], "points": ws["wrong_points"] + ws["missed_points"]}
+            for ws in weak_steps
+        ],
+        "review_recommendations": review_recommendations,
+    }
+
+    # LLM 生成个性化指导
+    llm_guidance = await _generate_llm_guidance(lesson, session, attempts, weak_steps)
+    base_report["llm_guidance"] = llm_guidance
+
+    # 组装对话式报告文本
+    report_text = _format_report_text(base_report, lesson)
+    base_report["report_text"] = report_text
+
+    return base_report
+
+
+async def _generate_llm_guidance(lesson: dict, session: dict, attempts: list[dict], weak_steps: list[dict]) -> str:
+    """用 LLM 生成鼓励 + 薄弱点 + 复习建议。"""
+    client = LLMClient()
+    if not client.is_available or not attempts:
+        return "继续加油，记得回看薄弱知识点喵~"
+
+    total_steps = len(lesson.get("steps", []))
+    completed = sum(1 for a in attempts if a["passed"])
+
+    weak_lines = []
+    for ws in weak_steps[:3]:
+        points = "、".join(ws["wrong_points"] + ws["missed_points"]) or ws["key_point"][:60]
+        weak_lines.append(f"- {ws['title']}（尝试 {ws['attempts']} 次）：{points}")
+
+    weak_text = "\n".join(weak_lines) if weak_lines else "暂无明显薄弱点"
+
+    system = """你是妙喵，一位亲切、有博主个人色彩的 AI 私教。请根据学生的课程表现，用鼓励的语气写一段学习总结。
+
+要求：
+- 简短、口语化、有温度（150 字以内）
+- 先肯定进步，再指出最需要补的 1-2 个薄弱点
+- 给出具体可执行的复习建议（建议回跳哪个时间片段）
+- 不要罗列所有数据，只抓重点"""
+
+    user = f"""课程：{lesson.get('title', '')}
+完成情况：完成 {completed}/{total_steps} 关
+总星数：{session['total_stars']} · 小鱼干：{session['fish']} · 成长值：{session['growth']}
+
+薄弱点：
+{weak_text}
+
+请写一段学习总结。"""
+
+    return await client.chat(system, user, max_tokens=250, temperature=0.7) or "继续加油，记得回看薄弱知识点喵~"
+
+
+def _format_report_text(report: dict, lesson: dict) -> str:
+    """把结构化报告格式化成对话式文本。"""
+    lines = ["🎉 全部通关！" if report["completed"] else "📝 学习小结"]
+    lines.append(f"⭐ 总星数：{report['total_stars']}")
+    lines.append(f"🐟 小鱼干：{report['fish']}")
+    lines.append(f"🌱 成长值：+{report['growth']}")
+    lines.append(f"📊 完成度：{int(report['completion_rate'] * 100)}% ({report['completed_steps'].__len__()}/{report['total_steps']})")
+
+    if report["weak_points"]:
+        weak_titles = "、".join(w["title"] for w in report["weak_points"][:3])
+        lines.append(f"\n📌 薄弱点：{weak_titles}")
+
+    if report["llm_guidance"]:
+        lines.append(f"\n💡 妙喵建议：\n{report['llm_guidance']}")
+
+    if report["review_recommendations"]:
+        lines.append("\n⏪ 推荐回看：")
+        for rec in report["review_recommendations"]:
+            sec = rec["seek_ms"] // 1000
+            lines.append(f"- {rec['title']}：{sec // 60:02d}:{sec % 60:02d}")
+
+    return "\n".join(lines)
+
+
+@router.get("/report/{session_id}/{lesson_id}")
+async def get_lesson_report(session_id: str, lesson_id: str) -> dict[str, Any]:
+    """获取课程学习分析报告（完成课程后自动触发）。"""
+    report = await _build_lesson_report(session_id, lesson_id)
+    if report.get("error"):
+        return report
+    return report

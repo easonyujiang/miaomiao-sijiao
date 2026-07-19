@@ -8,17 +8,18 @@ export type SiteSession = {
 }
 
 export type AgentAction = {
-  type: 'seek_video' | 'open_video' | 'open_section'
+  type: 'seek_video' | 'open_video' | 'open_section' | 'open_topic'
   video_id?: string
   time_ms?: number
   target?: string
+  topic_id?: string
   label: string
 }
 
 export type ChatResponse = {
   answer: string
   transcript?: string
-  expression: 'thinking' | 'excited'
+  expression: 'thinking' | 'excited' | 'confused'
   intent: string
   sources: Array<Record<string, unknown>>
   actions: AgentAction[]

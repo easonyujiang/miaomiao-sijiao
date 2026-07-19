@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import time
 from typing import Any
 
@@ -284,6 +285,235 @@ class SiteService:
         row = self.repository.video(video_id)
         return self._video(row) if row else None
 
+    @staticmethod
+    def _is_video_query(message: str) -> bool:
+        """判断用户是否在询问某条视频/内容讲了什么（关键词快路径）。
+
+        注意保持高精度：裸"内容/介绍/是什么"这类词误触发面太大，
+        没命中时会走 _classify_intent 的 LLM 兜底分类，不怕漏。
+        """
+        normalized = message.lower().strip()
+        query_triggers = {
+            "讲了什么", "关于什么", "主要内容", "讲什么", "说了什么", "讲了啥", "说了啥",
+            "讲的什么", "讲的啥", "什么内容", "什么看法", "怎么看", "怎么理解",
+            "什么观点", "如何评价", "总结一下", "概括一下", "梳理一下",
+        }
+        return any(t in normalized for t in query_triggers)
+
+    async def _classify_intent(self, message: str, video_id: str | None) -> str:
+        """关键词未命中时，用 LLM 做意图分类。
+
+        返回 "video_query" / "diary" / "community" / "other"。LLM 不可用时返回 "other"，
+        调用方自然回落到 FAQ 分支。
+        """
+        client = LLMClient()
+        if not client.is_available:
+            return "other"
+
+        system = """你是意图分类器。判断用户消息的意图，只输出 JSON。
+意图定义：
+- video_query：想了解某个视频的内容、讲了什么、看法、评价、观点、总结
+- diary：想问博主最近在做什么、近况、动态、日记
+- community：想找网站上的相关讨论、帖子、社区话题
+- other：其他（问候、关于博主本人、项目、联系方式等）
+只输出：{"intent": "video_query|diary|community|other"}"""
+
+        context = f"\n（用户当前正在观看视频：{video_id}）" if video_id else ""
+        result = await client.chat_json(system, f"用户消息：{message}{context}", max_tokens=40, timeout=8)
+        intent = (result or {}).get("intent", "other")
+        return intent if intent in {"video_query", "diary", "community", "other"} else "other"
+
+    @staticmethod
+    def _is_community_query(message: str) -> bool:
+        """判断用户是否在找网站上的讨论/帖子（关键词快路径）。"""
+        triggers = ("相关讨论", "的讨论", "帖子", "社区", "有人聊", "讨论区")
+        return any(t in message for t in triggers)
+
+    @staticmethod
+    def _extract_first_time_ms(text: str) -> int | None:
+        """从文本中提取第一个 [mm:ss] 时间戳，返回毫秒。"""
+        m = re.search(r"\[(\d{1,3}):(\d{2})\]", text)
+        if not m:
+            return None
+        return (int(m.group(1)) * 60 + int(m.group(2))) * 1000
+
+    @staticmethod
+    def _extract_video_keyword(message: str) -> str | None:
+        """从消息中提取用于视频模糊查询的关键字。"""
+        # 优先提取 BV 号
+        m = re.search(r"\bBV[A-Za-z0-9]{8,12}\b", message)
+        if m:
+            return m.group(0).upper()
+
+        # 去掉常见问句前缀/后缀
+        text = message.strip()
+        prefixes = ["妙喵", "请问", "问一下", "我想知道", "告诉我", "帮我查"]
+        for prefix in prefixes:
+            if text.lower().startswith(prefix.lower()):
+                text = text[len(prefix):].strip()
+
+        text = re.sub(r"[？?！!。]+\s*$", "", text)
+
+        # 去掉触发词和通用词（保留可能的标题/ID 片段）
+        noise_phrases = [
+            "讲了什么", "关于什么", "主要内容", "讲什么", "说了什么", "是什么",
+            "这个视频", "那期视频", "这期视频", "视频", "内容", "讲了啥", "说了啥",
+            "介绍一下", "给我讲", "跟我说", "描述一下", "概括一下", "总结一下",
+            "你有什么看法", "什么看法", "你怎么看", "怎么看", "怎么理解", "你觉得",
+            "如何评价", "评价一下", "什么观点", "的观点", "聊聊", "讲讲", "梳理一下",
+            "有没有相关", "相关讨论", "的讨论", "讨论区", "讨论", "帖子", "社区",
+            "有人聊过", "有人聊", "有没有", "关于",
+        ]
+        for phrase in noise_phrases:
+            text = text.replace(phrase, "")
+
+        text = re.sub(r"\s+", "", text)
+        return text if text else None
+
+    async def _summarize_video(
+        self, profile_id: str, video: dict[str, Any], message: str, display_name: str
+    ) -> str | None:
+        """用 LLM 对视频字幕做摘要，回答用户问题。"""
+        subtitle_text = self.repository.get_subtitle_text(video["id"])
+        if not subtitle_text:
+            return None
+
+        style_prompt = self._build_style_prompt(profile_id)
+        style_examples = self._build_style_examples(profile_id)
+        style_block = style_prompt
+        if style_examples:
+            style_block += "\n\n" + style_examples
+
+        client = LLMClient()
+        if not client.is_available:
+            return f"视频《{video['title']}》的字幕内容已有记录，但当前 LLM 服务不可用，无法生成摘要。"
+
+        system = f"""你是{display_name}的数字分身妙喵。请根据下面的视频字幕，回答用户关于该视频内容的问题。
+{style_block}
+
+核心约束（必须严格遵守）：
+- 只允许使用字幕里实际出现的信息，禁止编造字幕外的人物、案例、数据
+- 字幕每行开头是真实时间戳 [mm:ss]，引用具体片段时必须使用这些时间戳，禁止虚构时间点
+- 回答中至少引用一个 [mm:ss] 时间戳（挑最关键的知识点位置），方便用户点击跳转
+- 用户问"看法/观点/评价"时，基于字幕实际讲到的内容表达，不要引入字幕外的例子
+- 保持简洁、口语化、有博主个人色彩，像博主本人在聊天，不要写成百科词条
+- 如果用户问题在字幕里没有答案，诚实说明
+- 控制在 200 字以内"""
+
+        user = f"""视频标题：{video['title']}
+视频简介：{video.get('description') or video.get('summary', '')}
+
+字幕内容（[mm:ss] 为真实时间戳）：
+{subtitle_text[:5000]}
+
+用户问：{message}
+
+请回答："""
+
+        return await client.chat(system, user, max_tokens=300, temperature=0.6)
+
+    async def _answer_video_query(
+        self,
+        profile_id: str,
+        display_name: str,
+        message: str,
+        session_id: str | None = None,
+        video_id: str | None = None,
+        current_time_ms: int = 0,
+    ) -> dict[str, Any] | None:
+        """处理视频模糊查询。"""
+        keyword = self._extract_video_keyword(message)
+        if keyword:
+            candidates = self.repository.search_videos(profile_id, keyword, limit=5)
+        elif video_id:
+            # 没提取到关键词但带着当前视频上下文（如"这个视频讲了什么"）：直接总结当前视频
+            current = self.repository.video(video_id)
+            candidates = [current] if current else []
+        else:
+            return None
+        if not candidates:
+            return None
+
+        # 如果当前视频在候选列表中，优先用它回答
+        target = next((v for v in candidates if v["id"] == video_id), candidates[0])
+        answer = await self._summarize_video(profile_id, target, message, display_name)
+        if not answer:
+            return {
+                "answer": f"抱歉，我找到了视频《{target['title']}》，但还没有它的字幕，没法回答内容。",
+                "expression": "confused",
+                "intent": "video_query",
+                "sources": [{"type": "video", "video_id": target["id"], "label": target["title"]}],
+                "actions": [{"type": "seek_video", "video_id": target["id"], "time_ms": 0, "label": "▶ 跳转到视频"}],
+                "context": {"video_id": video_id, "current_time_ms": current_time_ms},
+            }
+
+        # 摘要里引用的第一个 [mm:ss] 作为跳转目标，让按钮落到具体知识点
+        seek_ms = self._extract_first_time_ms(answer) or 0
+        sources = [{"type": "video", "video_id": target["id"], "label": target["title"]}]
+        jump_label = f"▶ 跳到 {seek_ms // 60000}:{seek_ms // 1000 % 60:02d}" if seek_ms else "▶ 跳转到视频"
+        actions = [{"type": "seek_video", "video_id": target["id"], "time_ms": seek_ms, "label": jump_label}]
+
+        if len(candidates) > 1:
+            # 如果匹配到多个，追加相关推荐动作
+            for v in candidates[1:3]:
+                actions.append({"type": "seek_video", "video_id": v["id"], "time_ms": 0, "label": f"相关：{v['title']}"})
+
+        result = {
+            "answer": answer,
+            "expression": "excited",
+            "intent": "video_query",
+            "sources": sources,
+            "actions": actions,
+            "context": {"video_id": video_id, "current_time_ms": current_time_ms},
+        }
+        if session_id:
+            self.repository.save_message(session_id, "visitor", message, "video_query")
+            self.repository.save_message(session_id, "pet", answer, "video_query", sources, actions)
+        return result
+
+    async def _answer_community_query(
+        self,
+        profile_id: str,
+        display_name: str,
+        message: str,
+        session_id: str | None = None,
+        video_id: str | None = None,
+        current_time_ms: int = 0,
+    ) -> dict[str, Any] | None:
+        """处理"有没有相关讨论/帖子"：检索社区话题并给出跳转按钮。"""
+        keyword = self._extract_video_keyword(message)
+        if not keyword or len(keyword) < 2:
+            return None
+
+        topics = self.repository.search_community_topics(profile_id, keyword, limit=3)
+        if not topics:
+            return None
+
+        topic_lines = "；".join(f"《{t['title']}》（{t['reply_count']} 条回复）" for t in topics)
+        knowledge = f"网站社区里与用户问题相关的讨论有：{topic_lines}。"
+        answer = await self._rewrite_with_style(profile_id, knowledge, message, display_name)
+        if not answer:
+            answer = f"喵～帮你找到了 {len(topics)} 条相关讨论：{topic_lines}。点下面按钮直达帖子～"
+
+        actions = [
+            {"type": "open_topic", "topic_id": t["id"], "label": f"💬 {t['title'][:12]}"}
+            for t in topics
+        ]
+        actions.append({"type": "open_section", "target": "community", "label": "查看全部讨论"})
+
+        result = {
+            "answer": answer,
+            "expression": "excited",
+            "intent": "community",
+            "sources": [{"type": "topic", "topic_id": t["id"], "label": t["title"]} for t in topics],
+            "actions": actions,
+            "context": {"video_id": video_id, "current_time_ms": current_time_ms},
+        }
+        if session_id:
+            self.repository.save_message(session_id, "visitor", message, "community")
+            self.repository.save_message(session_id, "pet", answer, "community", result["sources"], actions)
+        return result
+
     async def chat(self, slug: str, message: str, session_id: str | None = None, video_id: str | None = None, current_time_ms: int = 0) -> dict[str, Any] | None:
         profile = self.repository.profile(slug)
         if not profile:
@@ -291,10 +521,38 @@ class SiteService:
         profile_id = profile["id"]
         display_name = profile["display_name"]
 
-        # ── 日记优先 ──────────────────────────────────────────
+        # ── 意图判断：关键词快路径 + LLM 兜底分类 ───────────────
         normalized = message.lower().strip()
         diary_triggers = ("最近", "今天", "昨天", "在做什么", "在忙什么", "近况", "日记", "更新", "最近在", "在干")
-        if any(trigger in normalized for trigger in diary_triggers):
+        is_diary_keyword = any(trigger in normalized for trigger in diary_triggers)
+
+        if self._is_video_query(message):
+            intent = "video_query"
+        elif is_diary_keyword:
+            intent = "diary"
+        elif self._is_community_query(message):
+            intent = "community"
+        else:
+            intent = await self._classify_intent(message, video_id)
+
+        # ── 视频模糊查询 ────────────────────────────────────────
+        if intent == "video_query":
+            video_result = await self._answer_video_query(
+                profile_id, display_name, message, session_id, video_id, current_time_ms
+            )
+            if video_result:
+                return video_result
+
+        # ── 社区讨论检索 ────────────────────────────────────────
+        if intent == "community":
+            community_result = await self._answer_community_query(
+                profile_id, display_name, message, session_id, video_id, current_time_ms
+            )
+            if community_result:
+                return community_result
+
+        # ── 日记优先 ──────────────────────────────────────────
+        if is_diary_keyword or intent == "diary":
             diary_rows = self.repository.diary(profile_id, limit=3)
             if diary_rows:
                 latest = self._diary(diary_rows[0])

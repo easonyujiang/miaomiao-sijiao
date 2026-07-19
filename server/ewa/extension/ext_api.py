@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import re
+import sqlite3
 from typing import Any
 
 from fastapi import APIRouter
@@ -22,6 +23,7 @@ from ewa.config import SUBTITLE_DIR, MOONSHOT_API_KEY, DEEPSEEK_API_KEY
 from ewa.llm.client import _is_valid_key
 from ewa.llm import LLMClient
 from ewa.extension.faq import match_offline_faq
+from ewa.extension.store import _get_db_path
 from ewa.extension.subtitle import (
     get_video_cache,
     load_subtitles,
@@ -31,6 +33,46 @@ from ewa.extension.subtitle import (
 )
 
 router = APIRouter(prefix="/api/ext", tags=["extension"])
+
+# ── 社区讨论检索 ──────────────────────────────────────────────
+
+_DISCUSSION_TRIGGERS = ("讨论", "帖子", "社区", "有人聊", "大家怎么看")
+
+_DISCUSSION_NOISE = [
+    "有没有", "有没有相关", "相关讨论", "的讨论", "讨论一下", "讨论", "帖子", "社区",
+    "有人聊", "聊过", "大家怎么看", "怎么看", "请问", "一下", "相关", "关于",
+]
+
+
+def _extract_topic_keyword(message: str) -> str:
+    """从消息中提取用于社区话题模糊检索的关键词。"""
+    text = re.sub(r"[？?！!。，,\s]+", "", message)
+    for phrase in _DISCUSSION_NOISE:
+        text = text.replace(phrase, "")
+    return text
+
+
+def _search_community_topics(message: str, limit: int = 3) -> list[dict[str, Any]]:
+    """按关键词模糊检索社区话题（标题/内容 LIKE）。"""
+    keyword = _extract_topic_keyword(message)
+    if len(keyword) < 2:
+        return []
+    try:
+        conn = sqlite3.connect(_get_db_path())
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = conn.execute(
+                """SELECT id, title, content, category, author_name, reply_count, video_id
+                   FROM community_topics
+                   WHERE title LIKE ? OR content LIKE ?
+                   ORDER BY is_pinned DESC, created_at DESC LIMIT ?""",
+                (f"%{keyword}%", f"%{keyword}%", limit),
+            ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return []
 
 
 # ── 请求/响应模型 ────────────────────────────────────────────
@@ -137,6 +179,20 @@ async def chat(req: ChatRequest) -> dict[str, Any]:
             for s in context_subs
         ]
         context_text = "\n".join(lines)
+
+    # ── 第零层：社区讨论检索（问"有没有相关讨论/帖子"时直接命中）──
+    if any(t in req.message for t in _DISCUSSION_TRIGGERS):
+        topics = _search_community_topics(req.message)
+        if topics:
+            lines = [f"{i + 1}. 《{t['title']}》（{t['reply_count']} 条回复）" for i, t in enumerate(topics)]
+            return {
+                "answer": "喵～网站上大家正在聊这些相关话题：\n\n" + "\n".join(lines) + "\n\n点下方按钮去看讨论～",
+                "seek_to_sec": None,
+                "topics": [{"id": t["id"], "title": t["title"], "reply_count": t["reply_count"]} for t in topics],
+                "context_used": 0,
+                "bvid": bvid,
+                "offline": False,
+            }
 
     # ── 第一层：LLM ────────────────────────────────────────
     ctx_block = (

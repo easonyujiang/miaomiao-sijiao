@@ -34,7 +34,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const formData = new FormData();
         formData.append("audio", blob, msg.filename || "recording.webm");
 
-        const res = await fetch(`${msg.baseUrl || "http://localhost:8000"}/api/speech-to-text`, {
+        const res = await fetch(`${msg.baseUrl || "http://8.130.190.169:8000"}/api/speech-to-text`, {
           method: "POST",
           body: formData,
           signal: controller.signal,

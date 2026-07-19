@@ -11,6 +11,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
+from ewa.admin.assets import AssetService, AssetValidationError
 from ewa.admin.auth import verify_token
 from ewa.admin.repository import AdminRepository, ALLOWED_TABLES, READ_WRITE_TABLES
 from ewa.core.logging import get_logger, log_admin_action
@@ -22,6 +23,87 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 def _repo(request: Request) -> AdminRepository:
     return request.app.state.admin_repository
+
+
+def _assets(request: Request) -> AssetService:
+    return AssetService(request.app.state.site_db_path)
+
+
+# ── 视频资产三通道管理（必须在通用 /{table} 之前注册） ──────────
+
+@router.get("/assets/videos")
+async def list_video_assets(request: Request, _token: str = Depends(verify_token)):
+    """所有视频的三通道合并视图：DB 行 + 字幕 + 课程 + 片段数。"""
+    return {"items": _assets(request).list_videos()}
+
+
+@router.post("/assets/videos", status_code=201)
+async def upsert_video_asset(request: Request, _token: str = Depends(verify_token)):
+    """一站式上线/更新视频：video + segments + subtitle + lesson（幂等）。"""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "请求体必须为 JSON")
+    try:
+        result = _assets(request).upsert_video(
+            video=body.get("video") or {},
+            segments=body.get("segments"),
+            subtitle=body.get("subtitle"),
+            lesson=body.get("lesson"),
+        )
+    except AssetValidationError as e:
+        raise HTTPException(400, str(e))
+    log_admin_action("admin", "UPSERT", "videos", result["video_id"],
+                      "一站式导入视频资产", request.client.host if request.client else None)
+    return {"ok": True, **result}
+
+
+@router.get("/assets/videos/{video_id}")
+async def get_video_asset(video_id: str, request: Request, _token: str = Depends(verify_token)):
+    video = _assets(request).get_video(video_id)
+    if not video:
+        raise HTTPException(404, f"视频不存在: {video_id}")
+    return video
+
+
+@router.put("/assets/videos/{video_id}/subtitle")
+async def put_video_subtitle(video_id: str, request: Request, _token: str = Depends(verify_token)):
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "请求体必须为 JSON")
+    try:
+        path = _assets(request).save_subtitle(video_id, body)
+    except AssetValidationError as e:
+        raise HTTPException(400, str(e))
+    log_admin_action("admin", "UPDATE", "subtitles", video_id,
+                      "更新字幕文件", request.client.host if request.client else None)
+    return {"ok": True, "path": str(path)}
+
+
+@router.put("/assets/videos/{video_id}/lesson")
+async def put_video_lesson(video_id: str, request: Request, _token: str = Depends(verify_token)):
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "请求体必须为 JSON")
+    try:
+        path = _assets(request).save_lesson(video_id, body)
+    except AssetValidationError as e:
+        raise HTTPException(400, str(e))
+    log_admin_action("admin", "UPDATE", "lessons", video_id,
+                      "更新课程文件", request.client.host if request.client else None)
+    return {"ok": True, "path": str(path)}
+
+
+@router.delete("/assets/videos/{video_id}")
+async def delete_video_asset(video_id: str, request: Request, _token: str = Depends(verify_token)):
+    removed = _assets(request).delete_video(video_id)
+    if not removed["video_row"]:
+        raise HTTPException(404, f"视频不存在: {video_id}")
+    log_admin_action("admin", "DELETE", "videos", video_id,
+                      f"删除视频及关联: {removed}", request.client.host if request.client else None)
+    return {"ok": True, "removed": removed}
 
 
 # ── 特殊路由（必须在 /{table} 之前注册） ──────────────────────
@@ -194,9 +276,9 @@ async def import_video(
         if "id" not in lesson:
             lesson["id"] = f"lesson_{video['id']}"
 
-        from pathlib import Path
         import json
-        lessons_dir = Path("data/miaomiao/lessons")
+        from ewa.config import LESSONS_DIR
+        lessons_dir = LESSONS_DIR
         lessons_dir.mkdir(parents=True, exist_ok=True)
         lesson_file = lessons_dir / f"{lesson['id']}.json"
         lesson_file.write_text(json.dumps(lesson, ensure_ascii=False, indent=2), encoding="utf-8")
