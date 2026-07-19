@@ -39,6 +39,13 @@ _FAIL_MISS = [
     "少了关键。{missed}——这才是核心，补上再试。",
 ]
 
+# 错误 — 学生说不知道/不会
+_FAIL_NON_ANSWER = [
+    "没关系喵～{key_point}，我们再看一遍视频里的这段。",
+    "还不熟没关系，核心是{key_point}，点下面的回退键跟我一起复习。",
+    "慢慢来，记住{key_point}就好，再看一次就会了喵。",
+]
+
 # 错误 — 既漏了又有错误
 _FAIL_BOTH = [
     "{wrong}这部分理解不对。另外{missed}没提到。核心就一句：{key_point}。",
@@ -54,6 +61,7 @@ def build_cat_message(
     attempt_num: int,
     step_title: str,
     key_point: str,
+    is_non_answer: bool = False,
 ) -> str:
     """根据评分结果生成猫咪反馈。"""
 
@@ -76,7 +84,9 @@ def build_cat_message(
     missed_str = missed[0] if missed else ""
     kp_short = key_point[:40] if key_point else "视频里的讲解"
 
-    if wrong_hits and missed:
+    if is_non_answer:
+        msg = random.choice(_FAIL_NON_ANSWER).format(key_point=kp_short)
+    elif wrong_hits and missed:
         msg = random.choice(_FAIL_BOTH).format(wrong=wrong_str, missed=missed_str, key_point=kp_short)
     elif wrong_hits:
         msg = random.choice(_FAIL_WRONG).format(wrong=wrong_str, key_point=kp_short)
@@ -85,7 +95,7 @@ def build_cat_message(
     else:
         msg = f"还差一点。{kp_short}——再看看视频里的这段。"
 
-    if missed:
+    if missed or is_non_answer:
         msg += "\n\n⏪ 猫猫帮你找到了对应片段，点下面跳回去再看一遍 👇"
     return filler + msg
 

@@ -405,7 +405,7 @@ function buildUI() {
   root.innerHTML = `
     <div id="mm-panel">
       <div id="mm-header">
-        <div id="mm-cat-lottie" style="width:36px;height:36px;flex:0 0 36px"></div>
+        <div id="mm-cat-lottie" style="width:36px;height:36px;flex:0 0 36px"><img src="" class="mm-lottie-fallback" alt="妙喵" /></div>
         <span id="mm-header-title">妙喵私教 · B站版</span>
         <span id="mm-state-badge">准备中</span>
         <button id="mm-site" title="访问个人网站">🏠</button>
@@ -421,14 +421,19 @@ function buildUI() {
       </div>
       <div id="mm-input-area">
         <div id="mm-voice-state"></div>
-        <input id="mm-input" type="text" placeholder="问妙喵..." />
-        <button id="mm-mic" title="按住说话">🎤</button>
-        <button id="mm-send">➤</button>
+        <div id="mm-input-row">
+          <input id="mm-input" type="text" placeholder="问妙喵..." />
+          <button id="mm-mic" title="按住说话">🎤</button>
+          <button id="mm-send">➤</button>
+        </div>
       </div>
     </div>
-    <button id="mm-bubble" title="妙喵私教"><div id="mm-bubble-lottie"></div></button>
+    <button id="mm-bubble" title="妙喵私教"><div id="mm-bubble-lottie"><img src="" class="mm-lottie-fallback" alt="妙喵" /></div></button>
   `;
   document.body.appendChild(root);
+  root.querySelectorAll(".mm-lottie-fallback").forEach((img) => {
+    img.src = chrome.runtime.getURL("assets/cat128.png");
+  });
   restorePetPos(root);
   bindEvents(root);
   MiaoPet.init(root, { setCatState, getCatState: () => state.catState });

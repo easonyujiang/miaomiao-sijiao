@@ -16,6 +16,38 @@ from ewa.llm import LLMClient
 _llm_client = LLMClient()
 
 
+# ── 非答案检测 ───────────────────────────────────────────────
+
+_NON_ANSWER_PATTERNS = [
+    r"^不知道$",
+    r"^不晓得$",
+    r"^不会$",
+    r"^没看懂$",
+    r"^不明白$",
+    r"^不懂$",
+    r"^不清楚$",
+    r"^i don'?t know$",
+    r"^no idea$",
+    r"^我不会$",
+    r"^我不清楚$",
+    r"^我不知道$",
+    r"^我没懂$",
+    r"^略$",
+    r"^\.\.\.$",
+]
+
+
+def is_non_answer(answer: str) -> bool:
+    """检测学生是否表示「不知道/不会/没看懂」。"""
+    text = answer.strip().lower()
+    if not text or len(text) <= 2:
+        return True
+    for pattern in _NON_ANSWER_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            return True
+    return False
+
+
 # ── 关键词评分 ────────────────────────────────────────────────
 
 def score_answer(answer: str, answer_key: list[str], wrong_key: list[str] | None = None) -> dict:
@@ -27,6 +59,15 @@ def score_answer(answer: str, answer_key: list[str], wrong_key: list[str] | None
     Returns:
         {score, matched, missed, wrong_hits}
     """
+    if is_non_answer(answer):
+        return {
+            "score": 0.0,
+            "matched": [],
+            "missed": list(answer_key),
+            "wrong_hits": [],
+            "is_non_answer": True,
+        }
+
     wrong_key = wrong_key or []
 
     def extract_words(text: str) -> list[str]:
@@ -130,6 +171,12 @@ async def score_answer_with_llm(
         result["llm_used"] = False
         return result
 
+    # 无效回答直接判错，不浪费 LLM
+    if result.get("is_non_answer"):
+        result["llm_used"] = False
+        result["llm_skipped"] = True
+        return result
+
     # 第二层：LLM 语义判断（跳过不可用的 LLM）
     if not _llm_client.is_available:
         result["llm_used"] = False
@@ -211,7 +258,9 @@ async def _llm_judge(
 1. 只要学生表达的意思与参考答案要点一致，即使措辞不同也应认为命中
 2. 关注实质性理解，不是字面匹配
 3. 如果学生指出了参考答案中没有的但正确的观点，不算错误
-4. 只有明确的知识性错误才计入 wrong_points"""
+4. 只有明确的知识性错误才计入 wrong_points
+5. 如果学生回答「不知道」「不会」「没看懂」等无效回答，matched_points 必须为空数组，并在 comment 中说明学生尚未掌握，需回看视频
+6. 不要过度宽容，无效回答不能得分"""
 
     user = f"""题目：{question}
 

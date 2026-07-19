@@ -59,7 +59,8 @@
     {
       "resources": [
         "sounds/*",
-        "lottie/*"
+        "lottie/*",
+        "assets/*"
       ],
       "matches": [
         "*://*.bilibili.com/*",

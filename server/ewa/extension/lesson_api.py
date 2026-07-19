@@ -194,6 +194,7 @@ async def quiz_submit(req: QuizSubmitRequest) -> dict[str, Any]:
         attempt_num=attempt_num,
         step_title=step["title"],
         key_point=step["key_point"],
+        is_non_answer=result.get("is_non_answer", False),
     )
     if result.get("llm_comment"):
         cat_message += f"\n\n🤖 猫猫深度分析：{result['llm_comment']}"
