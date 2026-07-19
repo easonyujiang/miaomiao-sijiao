@@ -33,11 +33,17 @@ let bubbleLottieAnim = null;
 let panelOpenedOnce = false;
 
 function setCatState(s) {
-  if (state.catState === s) return;
-  state.catState = s;
   const container = document.getElementById("mm-cat-lottie");
   const bubble = document.getElementById("mm-bubble-lottie");
-  if (typeof lottie === "undefined") return;
+  if (typeof lottie === "undefined") {
+    // lottie 脚本不可用时直接显示兜底图
+    container?.querySelector("img")?.style.setProperty("opacity", "1");
+    bubble?.querySelector("img")?.style.setProperty("opacity", "1");
+    return;
+  }
+  // 同状态且动画已加载才跳过；首次调用（动画尚未加载）必须继续
+  if (state.catState === s && bubbleLottieAnim) return;
+  state.catState = s;
   const file = CAT_LOTTIE_FILES[s];
   if (!file) return;
   const path = chrome.runtime.getURL("lottie/" + file);
@@ -50,6 +56,9 @@ function setCatState(s) {
       console.warn("Miao: panel lottie failed", file);
       container.querySelector("img")?.style.setProperty("opacity", "1");
     });
+    catLottieAnim.addEventListener("DOMLoaded", () => {
+      container.querySelector("img")?.style.setProperty("opacity", "0");
+    });
   }
   if (bubble) {
     if (bubbleLottieAnim) { bubbleLottieAnim.destroy(); bubbleLottieAnim = null; }
@@ -59,6 +68,9 @@ function setCatState(s) {
     bubbleLottieAnim.addEventListener("data_failed", () => {
       console.warn("Miao: bubble lottie failed", file);
       bubble.querySelector("img")?.style.setProperty("opacity", "1");
+    });
+    bubbleLottieAnim.addEventListener("DOMLoaded", () => {
+      bubble.querySelector("img")?.style.setProperty("opacity", "0");
     });
   }
 }
@@ -443,13 +455,11 @@ function buildUI() {
   root.querySelectorAll(".mm-lottie-fallback").forEach((img) => {
     img.src = chrome.runtime.getURL("assets/cat128.png");
   });
-  const bubbleBtn = root.querySelector("#mm-bubble");
-  if (bubbleBtn) {
-    bubbleBtn.style.backgroundImage = `url(${chrome.runtime.getURL("assets/cat128.png")})`;
-  }
   restorePetPos(root);
   bindEvents(root);
   MiaoPet.init(root, { setCatState, getCatState: () => state.catState });
+  // 初始即加载 idle 动画，否则首次状态变化前气泡是空的
+  setCatState("idle");
 }
 
 // 桌宠拖拽：按住可拖动，松开距离 <5px 视为点击（小雅桌宠式交互）

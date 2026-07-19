@@ -24,7 +24,7 @@
       ],
       "js": [
         "lib/howler.min.js",
-        "lib/lottie.min.js",
+        "lib/lottie_light.min.js",
         "lib/confetti.browser.js",
         "sound.js",
         "pet.js",
@@ -42,7 +42,7 @@
       ],
       "js": [
         "lib/howler.min.js",
-        "lib/lottie.min.js",
+        "lib/lottie_light.min.js",
         "lib/confetti.browser.js",
         "sound.js",
         "pet.js",

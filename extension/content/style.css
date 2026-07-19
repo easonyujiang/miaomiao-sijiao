@@ -34,6 +34,7 @@
   object-fit: contain;
   pointer-events: none;
   z-index: 0;
+  /* 兜底图默认显示（已裁圆形）；lottie 加载成功后由 DOMLoaded 事件隐藏 */
   border-radius: 50%;
 }
 #mm-cat-lottie svg,
