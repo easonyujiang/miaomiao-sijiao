@@ -1,14 +1,12 @@
 """猫咪反馈消息生成
 
-根据答题结果生成妙喵的个性化反馈，并标注每句话的形态。
+根据答题结果生成妙喵的个性化反馈。
 """
 
 from __future__ import annotations
 
 import random
-from typing import Any
 
-from ewa.extension.mood import build_segments
 
 # 语气词池 —— 小概率穿插，让猫更活
 _FILLERS = ["喵~ ", "唔… ", "嗯，", "", "", "", ""]  # 空串占多数，不滥用
@@ -41,56 +39,18 @@ _FAIL_MISS = [
     "少了关键。{missed}——这才是核心，补上再试。",
 ]
 
+# 错误 — 学生说不知道/不会
+_FAIL_NON_ANSWER = [
+    "没关系喵～{key_point}，我们再看一遍视频里的这段。",
+    "还不熟没关系，核心是{key_point}，点下面的回退键跟我一起复习。",
+    "慢慢来，记住{key_point}就好，再看一次就会了喵。",
+]
+
 # 错误 — 既漏了又有错误
 _FAIL_BOTH = [
     "{wrong}这部分理解不对。另外{missed}没提到。核心就一句：{key_point}。",
     "两个问题：{wrong}是错的；{missed}没写出来。记住{key_point}。",
 ]
-
-
-def _compose_message(
-    passed: bool,
-    matched: list[str],
-    missed: list[str],
-    wrong_hits: list[str],
-    attempt_num: int,
-    step_title: str,
-    key_point: str,
-) -> str:
-    """生成原始反馈文本（不含填充词）。"""
-    if passed:
-        matched_str = matched[0] if matched else "核心要点"
-        if attempt_num == 1:
-            msg = random.choice(_PASS_FIRST).format(matched=matched_str)
-        else:
-            wrong_str = wrong_hits[0] if wrong_hits else "干扰项"
-            msg = random.choice(_PASS_RETRY).format(
-                matched=matched_str, attempts=attempt_num, wrong=wrong_str
-            )
-        msg += f"\n🌟 {min(3, 4 - attempt_num)} 星 · 小鱼干 +3"
-        return msg
-
-    # 未通过
-    wrong_str = wrong_hits[0] if wrong_hits else ""
-    missed_str = missed[0] if missed else ""
-    kp_short = key_point[:40] if key_point else "视频里的讲解"
-
-    if wrong_hits and missed:
-        msg = random.choice(_FAIL_BOTH).format(wrong=wrong_str, missed=missed_str, key_point=kp_short)
-    elif wrong_hits:
-        msg = random.choice(_FAIL_WRONG).format(wrong=wrong_str, key_point=kp_short)
-    elif missed:
-        msg = random.choice(_FAIL_MISS).format(missed=missed_str, key_point=kp_short)
-    else:
-        msg = f"还差一点。{kp_short}——再看看视频里的这段。"
-        if missed:
-            msg += "\n\n漏掉的要点：\n" + "\n".join(f"  · {m}" for m in missed[:2])
-        if wrong_hits:
-            msg += "\n\n⚠️ 理解有误：\n" + "\n".join(f"  · {w}" for w in wrong_hits[:2])
-
-    if missed:
-        msg += "\n\n⏪ 猫猫帮你找到了对应片段，点下面跳回去再看一遍 👇"
-    return msg
 
 
 def build_cat_message(
@@ -101,60 +61,43 @@ def build_cat_message(
     attempt_num: int,
     step_title: str,
     key_point: str,
+    is_non_answer: bool = False,
 ) -> str:
-    """根据评分结果生成猫咪反馈（保持向后兼容的字符串返回）。"""
+    """根据评分结果生成猫咪反馈。"""
+
     filler = random.choice(_FILLERS)
-    return filler + _compose_message(
-        passed=passed,
-        matched=matched,
-        missed=missed,
-        wrong_hits=wrong_hits,
-        attempt_num=attempt_num,
-        step_title=step_title,
-        key_point=key_point,
-    )
 
-
-def build_cat_feedback(
-    passed: bool,
-    matched: list[str],
-    missed: list[str],
-    wrong_hits: list[str],
-    attempt_num: int,
-    step_title: str,
-    key_point: str,
-    seek_to_ms: int | None = None,
-) -> dict[str, Any]:
-    """生成猫咪反馈的完整结构：文本 + 形态分段 + 状态。"""
-    filler = random.choice(_FILLERS)
-    message = filler + _compose_message(
-        passed=passed,
-        matched=matched,
-        missed=missed,
-        wrong_hits=wrong_hits,
-        attempt_num=attempt_num,
-        step_title=step_title,
-        key_point=key_point,
-    )
-
-    seek_to_sec = int(seek_to_ms / 1000) if seek_to_ms else None
-    default_form = "celebrating" if passed else "failed"
-    segments = build_segments(message, seek_to_sec=seek_to_sec, default_form=default_form)
-
-    return {
-        "cat_message": message,
-        "cat_state": calc_cat_state_after_submit(passed, attempt_num),
-        "segments": segments,
-    }
-
-
-def calc_cat_state_after_submit(passed: bool, attempt_num: int) -> str:
-    """提交一次答案后应该展示的猫形态。"""
-    if passed and attempt_num == 1:
-        return "celebrating"
     if passed:
-        return "levelup"
-    return "failed"
+        matched_str = matched[0] if matched else "核心要点"
+        if attempt_num == 1:
+            msg = random.choice(_PASS_FIRST).format(matched=matched_str)
+        else:
+            wrong_str = wrong_hits[0] if wrong_hits else "干扰项"
+            msg = random.choice(_PASS_RETRY).format(
+                matched=matched_str, attempts=attempt_num, wrong=wrong_str
+            )
+        msg += f"\n⭐ {min(3, 4 - attempt_num)} 星 · 🐟 +3"
+        return filler + msg
+
+    # 未通过
+    wrong_str = wrong_hits[0] if wrong_hits else ""
+    missed_str = missed[0] if missed else ""
+    kp_short = key_point[:40] if key_point else "视频里的讲解"
+
+    if is_non_answer:
+        msg = random.choice(_FAIL_NON_ANSWER).format(key_point=kp_short)
+    elif wrong_hits and missed:
+        msg = random.choice(_FAIL_BOTH).format(wrong=wrong_str, missed=missed_str, key_point=kp_short)
+    elif wrong_hits:
+        msg = random.choice(_FAIL_WRONG).format(wrong=wrong_str, key_point=kp_short)
+    elif missed:
+        msg = random.choice(_FAIL_MISS).format(missed=missed_str, key_point=kp_short)
+    else:
+        msg = f"还差一点。{kp_short}——再看看视频里的这段。"
+
+    if missed or is_non_answer:
+        msg += "\n\n⏪ 猫猫帮你找到了对应片段，点下面跳回去再看一遍 👇"
+    return filler + msg
 
 
 def calc_cat_state(session: dict, current_idx: int, total: int) -> str:

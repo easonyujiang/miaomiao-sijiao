@@ -50,6 +50,18 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
+# ── 通义千问多模态语音模型（Qwen3.5-Omni）──────────────
+QWEN_API_KEY = os.getenv("QWEN_API_KEY", "")
+QWEN_API_BASE = os.getenv(
+    "QWEN_API_BASE",
+    "https://dashscope.aliyuncs.com/compatible-mode/v1",
+)
+QWEN_VOICE_MODEL = os.getenv("QWEN_VOICE_MODEL", "qwen3.5-omni-plus")
+
+# ── 语音识别（百度短语音识别）──────────────────────────────
+BAIDU_API_KEY = os.getenv("BAIDU_API_KEY", "")
+BAIDU_SECRET_KEY = os.getenv("BAIDU_SECRET_KEY", "")
+
 # ── 扩展安全 ──────────────────────────────────────────────
 # Chrome Extension 与后端通信的共享 token；未设置时不校验（向后兼容）
 EWA_EXTENSION_TOKEN = os.getenv("EWA_EXTENSION_TOKEN", "")

@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from ewa.llm import LLMClient
 from ewa.extension.mood import build_segments, mood_for
 
 from .repository import SiteRepository
+
+# 写作样本缓存：{profile_id: (expire_time, samples)}
+_SAMPLE_CACHE: dict[str, tuple[float, str]] = {}
+_SAMPLE_CACHE_TTL = 300  # 5 分钟缓存
 
 
 class SiteService:
@@ -15,7 +20,14 @@ class SiteService:
     # ── 风格学习（从数据中自动提取） ─────────────────────────────
 
     def _collect_writing_samples(self, profile_id: str) -> str:
-        """采集博主所有写作样本，作为风格学习的语料。"""
+        """采集博主所有写作样本，作为风格学习的语料（带缓存）。"""
+        # 检查缓存
+        now = time.monotonic()
+        if profile_id in _SAMPLE_CACHE:
+            expire, cached = _SAMPLE_CACHE[profile_id]
+            if now < expire:
+                return cached
+
         parts: list[str] = []
 
         # 日记正文（最近 10 条，各取前 200 字）
@@ -41,7 +53,9 @@ class SiteService:
             if summary:
                 parts.append(summary)
 
-        return "\n\n---\n\n".join(parts)
+        samples = "\n\n---\n\n".join(parts)
+        _SAMPLE_CACHE[profile_id] = (now + _SAMPLE_CACHE_TTL, samples)
+        return samples
 
     async def _analyze_style(self, samples: str) -> dict[str, Any]:
         """用 LLM 分析写作样本，提取风格特征。"""
@@ -281,7 +295,7 @@ class SiteService:
         # ── 日记优先 ──────────────────────────────────────────
         normalized = message.lower().strip()
         diary_triggers = ("最近", "今天", "昨天", "在做什么", "在忙什么", "近况", "日记", "更新", "最近在", "在干")
-        if any(trigger in message for trigger in diary_triggers):
+        if any(trigger in normalized for trigger in diary_triggers):
             diary_rows = self.repository.diary(profile_id, limit=3)
             if diary_rows:
                 latest = self._diary(diary_rows[0])
@@ -345,6 +359,87 @@ class SiteService:
             pet_message_id = self.repository.save_message(session_id, "pet", answer, faq["intent"], sources, actions)
             for action in actions:
                 self.repository.record_event(session_id, "agent_action_proposed", faq.get("target_section"), action.get("video_id") or action.get("target"), {"message_id": pet_message_id, "action": action})
+        return result
+
+    def _build_voice_system_prompt(self, profile_id: str, display_name: str, pet: dict[str, Any]) -> str:
+        """为语音多模态模型构建系统提示词（包含人设、风格、知识库）。"""
+        style_prompt = self._build_style_prompt(profile_id)
+        style_examples = self._build_style_examples(profile_id)
+
+        faqs = self.repository.faqs(profile_id)
+        faq_lines: list[str] = []
+        for faq in faqs[:10]:
+            question = faq.get("question", "").strip()
+            answer = faq.get("answer", "").strip()
+            if question and answer:
+                faq_lines.append(f"Q: {question}\nA: {answer}")
+
+        pet_name = pet.get("name", "妙喵")
+        pet_role = pet.get("role", "博主宠物")
+        traits = self.repository.decode_json(pet.get("traits_json", "[]"), [])
+        traits_line = ",".join(traits) if traits else ""
+
+        system = f"""你是{display_name}的{pet_role} {pet_name}。
+{traits_line and f"你的特点：{traits_line}"}
+
+你的任务：直接听取用户的语音消息，理解TA的意图，并用以下风格自然回复。你不需要重复用户的话，只需直接回答。
+"""
+
+        if style_prompt:
+            system += f"\n{style_prompt}"
+        if style_examples:
+            system += f"\n\n{style_examples}"
+
+        if faq_lines:
+            system += f"\n\n你可以参考以下知识库回答问题（请保持自己的风格，不要逐条照搬）：\n" + "\n\n".join(faq_lines)
+
+        system += """
+
+回复约束：
+- 用第一人称"我"自称，保持可爱、友善、有人情味。
+- 只基于知识库回答，不编造{display_name}的个人信息。
+- 如果语音内容不清晰或不在知识库范围内，礼貌地请求用户再说一遍或说明你不知道。
+- 回复控制在 150 字以内。
+"""
+        return system
+
+    async def chat_with_voice(
+        self,
+        slug: str,
+        audio_bytes: bytes,
+        session_id: str | None = None,
+        video_id: str | None = None,
+        current_time_ms: int = 0,
+    ) -> dict[str, Any] | None:
+        """微信式语音聊天：百度 ASR 转文字 + 现有文字聊天链路。
+
+        返回结果中包含语音识别文本（transcript），方便前端展示。
+        """
+        profile = self.repository.profile(slug)
+        if not profile:
+            return None
+
+        # 百度 ASR 转文字
+        try:
+            from ewa.speech import get_speech_provider
+            provider = get_speech_provider()
+            if not provider or not provider.configured() or not audio_bytes:
+                return None
+            text = await provider.transcribe(audio_bytes)
+        except Exception:
+            return None
+
+        if not text:
+            return None
+
+        # 文字聊天（走 DeepSeek/Kimi + FAQ/动作匹配）
+        result = await self.chat(slug, text, session_id, video_id, current_time_ms)
+        if not result:
+            return None
+
+        result["transcript"] = text
+        result["intent"] = "voice"
+
         return result
 
     @staticmethod

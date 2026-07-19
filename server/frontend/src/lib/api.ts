@@ -75,6 +75,29 @@ export function chatWithPet(
   })
 }
 
+export function chatWithVoice(
+  audioBlob: Blob,
+  context: { sessionId?: string; videoId?: string; currentTimeMs?: number },
+  slug = DEFAULT_SLUG,
+) {
+  const formData = new FormData()
+  formData.append('audio', audioBlob, 'recording.webm')
+  if (context.sessionId) formData.append('session_id', context.sessionId)
+  if (context.videoId) formData.append('video_id', context.videoId)
+  formData.append('current_time_ms', String(context.currentTimeMs ?? 0))
+
+  return fetch(`/api/site/${slug}/voice-chat`, {
+    method: 'POST',
+    body: formData,
+  }).then(async (response) => {
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({ detail: '语音聊天服务不可用' }))
+      throw new Error(data.detail || `API ${response.status}`)
+    }
+    return response.json() as Promise<ChatResponse>
+  })
+}
+
 export function recordEvent(
   sessionId: string,
   event: { event_type: string; section_id?: string; target_id?: string; payload?: Record<string, unknown> },

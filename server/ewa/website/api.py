@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import sqlite3
+import tempfile
+from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+
+from ewa.core.audio_utils import convert_to_wav
 
 from .service import SiteService
 from .tts import TTSOptions, synthesize_to_file
@@ -132,6 +136,52 @@ async def chat_with_pet(slug: str, payload: SiteChatRequest, request: Request):
         raise HTTPException(status_code=404, detail="Session not found") from exc
     if not result:
         raise HTTPException(status_code=404, detail="Creator site not found")
+    return result
+
+
+@router.post("/site/{slug}/voice-chat")
+async def voice_chat_with_pet(
+    slug: str,
+    request: Request,
+    audio: UploadFile = File(..., description="语音音频文件（支持 webm/opus/wav 等浏览器常见格式）"),
+    session_id: str | None = Form(None),
+    video_id: str | None = Form(None),
+    current_time_ms: int = Form(0),
+) -> dict[str, Any]:
+    """语音多模态聊天：直接上传音频，由 Qwen3.5-Omni-Flash 理解并回复。"""
+    suffix = Path(audio.filename or "audio.webm").suffix or ".webm"
+
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            input_path = tmp / f"input{suffix}"
+            output_path = tmp / "output.wav"
+
+            content = await audio.read()
+            input_path.write_bytes(content)
+
+            await convert_to_wav(input_path, output_path)
+            wav_bytes = output_path.read_bytes()
+
+            result = await _service(request).chat_with_voice(
+                slug,
+                wav_bytes,
+                session_id,
+                video_id,
+                current_time_ms,
+            )
+    except sqlite3.IntegrityError as exc:
+        raise HTTPException(status_code=404, detail="Session not found") from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=f"音频处理失败: {exc}") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"语音聊天失败: {exc}") from exc
+
+    if not result:
+        raise HTTPException(
+            status_code=503,
+            detail="语音聊天服务暂时不可用：请检查百度 ASR 配置或音频中是否包含语音内容",
+        )
     return result
 
 

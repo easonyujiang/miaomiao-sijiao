@@ -79,8 +79,7 @@ def _ensure_lesson_tables() -> None:
                     step_results_json TEXT NOT NULL DEFAULT '{}',
                     review_queue_json TEXT NOT NULL DEFAULT '[]',
                     started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 );
 
                 CREATE TABLE IF NOT EXISTS lesson_attempts (
@@ -230,10 +229,6 @@ def get_session(session_id: str, lesson_id: str, video_id: str = "", profile_id:
     stored = LessonStore.load_session(session_id)
     if stored:
         return stored
-
-    # 测试/未传 profile_id 时，使用默认 profile 避免外键约束失败
-    if not profile_id:
-        profile_id = "profile_ashley"
 
     return {
         "session_id": session_id,
