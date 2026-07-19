@@ -1,6 +1,6 @@
 # 妙喵私教 v0.3.0
 
-把教学视频变成一对一私教——为每位视频博主生成有个人色彩的宠物 Agent。
+把教学视频变成一对一私教——为每位视频博主生成有个人色彩的宠物 Agent。支持文字/语音聊天、视频片段问答、课程闯关答题。
 
 ## 项目结构
 
@@ -23,6 +23,14 @@ ewa/
 └── docs/                  # 文档
 ```
 
+## 功能概览
+
+| 端 | 功能 |
+|---|---|
+| 网页 | 博主个人主页、博客、社区、日记、项目展示、妙喵助手（文字+语音聊天） |
+| 插件 | B站/抖音视频页注入妙喵面板，支持视频问答、课程闯关、语音答题 |
+| 后端 | FastAPI 提供站点数据、聊天、视频问答、课程评分、语音识别、社区 API |
+
 ## 快速启动
 
 ### 服务端
@@ -33,11 +41,12 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
 
-Copy-Item .env.example .env   # 填入 MOONSHOT_API_KEY 或 DEEPSEEK_API_KEY
+Copy-Item .env.example .env
+# 填入 MOONSHOT_API_KEY / DEEPSEEK_API_KEY / BAIDU_API_KEY / BAIDU_SECRET_KEY
 
 python run.py                 # → http://localhost:8000
 
-# 另开终端启动前端
+# 另开终端启动前端（开发模式）
 cd frontend
 npm install
 npm run dev                   # → http://localhost:3000
@@ -49,26 +58,36 @@ npm run dev                   # → http://localhost:3000
 2. 加载已解压的扩展程序 → 选择 `extension/` 目录
 3. 打开 B站视频页，妙喵面板自动出现
 
+> 默认插件连接 `http://localhost:8000`。若连接远程服务器，修改 `extension/content/bilibili.js` 和 `douyin.js` 中的 `API_BASE`，并在 `manifest.json` 的 `host_permissions` 中添加对应域名。
+
 ## 技术栈
 
 | 层 | 技术 |
-|---|------|
+|---|---|
 | 后端 | Python FastAPI + SQLite + Uvicorn |
 | 前端 | Next.js 15 + React 19 + Tailwind CSS + shadcn/ui |
-| LLM | Kimi (Moonshot) → DeepSeek 自动降级 |
-| 插件 | Chrome Extension MV3 + Lottie + howler.js |
+| LLM | DeepSeek / Kimi (Moonshot) |
+| 语音 | 百度短语音识别 (Baidu ASR) + Web Speech API（网页端） |
+| 插件 | Chrome Extension MV3 + Lottie + howler.js + MediaRecorder |
 
-## API
+## 主要 API
 
 | 端点 | 说明 |
 |------|------|
 | `GET /health` | 健康检查 |
 | `POST /api/site/{slug}/chat` | 猫咪聊天（LLM 风格改写） |
+| `POST /api/site/{slug}/voice-chat` | 妙喵语音聊天（上传音频） |
 | `POST /api/ext/register_video` | 注册视频 + 字幕匹配 |
 | `POST /api/ext/chat` | 视频时间戳问答 |
 | `POST /api/lesson/load` | 加载课程 |
 | `POST /api/lesson/quiz_submit` | 提交答题 |
+| `POST /api/speech-to-text` | 音频转文字（Baidu ASR） |
 | `GET/POST/PUT/DELETE /api/admin/{table}` | 管理后台 CRUD |
+
+## 语音功能
+
+- **网页端**：妙喵助手面板支持按住麦克风说话，走百度 ASR 转文字后聊天。
+- **插件端**：B站/抖音内容脚本的输入区支持按住 🎤 录音，通过 `background.js` 上传到后端 `/api/speech-to-text`，识别结果自动作为答案或问题发送。
 
 ## 文档
 
