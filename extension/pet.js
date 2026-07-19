@@ -171,13 +171,18 @@
     if (!menu) return;
     clearTimeout(menuHideTimer);
     menu.classList.add("mm-show");
+    rootEl.classList.add("mm-menu-open");
   }
   function hideMenu(ms = 0) {
     clearTimeout(menuHideTimer);
     const menu = document.getElementById("mm-pet-menu");
     if (!menu) return;
-    if (ms <= 0) { menu.classList.remove("mm-show"); return; }
-    menuHideTimer = setTimeout(() => menu.classList.remove("mm-show"), ms);
+    const close = () => {
+      menu.classList.remove("mm-show");
+      rootEl.classList.remove("mm-menu-open");
+    };
+    if (ms <= 0) { close(); return; }
+    menuHideTimer = setTimeout(close, ms);
   }
 
   function doPat() {

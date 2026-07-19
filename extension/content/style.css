@@ -23,6 +23,7 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
+  border-radius: 50%;
 }
 #mm-cat-lottie img,
 #mm-bubble-lottie img {
@@ -33,6 +34,7 @@
   object-fit: contain;
   pointer-events: none;
   z-index: 0;
+  border-radius: 50%;
 }
 #mm-cat-lottie svg,
 #mm-bubble-lottie svg {
@@ -40,6 +42,7 @@
   z-index: 1;
   width: 100%;
   height: 100%;
+  border-radius: 50%;
 }
 
 /* 猫咪气泡按钮：粉色背景+投影，可拖拽 */
@@ -49,6 +52,7 @@
   background: rgba(255, 245, 248, 0.96) center center / 62% no-repeat;
   border: 2px solid #ffd6e4;
   border-radius: 50%;
+  clip-path: circle(50%);
   cursor: grab;
   display: flex;
   align-items: center;
@@ -61,6 +65,7 @@
   box-shadow: 0 6px 16px rgba(255, 150, 180, 0.35);
   backdrop-filter: blur(4px);
   position: relative;
+  overflow: hidden;
 }
 #mm-bubble::before {
   content: "";
@@ -154,6 +159,10 @@
 }
 /* 面板展开时，对话在面板内进行，隐藏悬浮说话气泡避免叠在面板上 */
 #mm-panel.mm-open ~ #mm-say {
+  display: none;
+}
+/* 互动菜单展开时同样隐藏说话气泡，避免与菜单重叠 */
+#miaomiao-root.mm-menu-open #mm-say {
   display: none;
 }
 
