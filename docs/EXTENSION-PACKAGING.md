@@ -145,9 +145,9 @@ extension/
 │   ├── voice.js           # 通用语音录制/上传工具
 │   └── style.css          # 注入样式
 ├── lib/
-│   ├── lottie.min.js      # Lottie 动画引擎
-│   ├── howler.min.js      # 音频播放库
-│   └── confetti.browser.js # 撒花特效
+│   ├── lottie_light.min.js  # Lottie 动画引擎（轻量版）
+│   ├── howler.min.js        # 音频播放库
+│   └── confetti.browser.js  # 撒花特效
 ├── lottie/                 # Lottie 动画 JSON 文件
 │   ├── cat-lovely.json     # idle 状态
 │   ├── cat-playing.json    # watching 状态
@@ -197,7 +197,7 @@ extension/
 "content_scripts": [
     {
         "matches": ["https://www.bilibili.com/video/*"],
-        "js": ["lib/howler.min.js", "lib/lottie.min.js", "lib/confetti.browser.js", "sound.js", "pet.js", "content/bilibili.js"],
+        "js": ["lib/howler.min.js", "lib/lottie_light.min.js", "lib/confetti.browser.js", "sound.js", "pet.js", "content/bilibili.js"],
         "css": ["content/style.css"],
         "run_at": "document_idle"
     }
@@ -205,14 +205,19 @@ extension/
 ]
 ```
 
+### 猫为什么是静态图而不是动画？
+
+插件使用 `lottie_light.min.js` 加载 Lottie 动画。动画加载成功时显示动态猫；加载失败或浏览器不支持时，自动降级为 `assets/cat128.png` 静态猫图，保证用户始终能看到猫。
+
 ### 打包后体积过大
 
 插件总大小主要来自：
-- `lib/` 下的第三方库（lottie、howler、confetti）约 300KB
+- `lib/` 下的第三方库（lottie_light、howler、confetti）约 250KB
 - `lottie/` 动画 JSON 文件约 100KB
 - `sounds/` 音效 MP3 约 50KB
+- `assets/` 图标和兜底猫图约 40KB
 
-总大小通常在 500KB 以内，Chrome Web Store 无明显限制。
+总大小通常在 450KB 以内，Chrome Web Store 无明显限制。
 
 ### 更新后用户如何升级
 
