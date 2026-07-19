@@ -83,6 +83,16 @@ export function ContentDetail({ item, topicId, onBack }: ContentDetailProps) {
         <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-500">
           {typeLabels[item.type] ?? item.type}
         </span>
+        {item.videoId && (
+          <a
+            href={item.videoId.startsWith('BV') ? `https://www.bilibili.com/video/${item.videoId}` : `https://www.douyin.com/video/${item.videoId.replace(/^DY_/, '')}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] text-blue-500 hover:bg-blue-100"
+          >
+            ▶ 看视频
+          </a>
+        )}
         <span className="text-[10px] text-neutral-400">{item.createdAt}</span>
         <span className="flex-1" />
         <button className="inline-flex items-center gap-1 text-[10px] text-neutral-400 hover:text-neutral-600">

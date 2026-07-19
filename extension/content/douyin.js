@@ -160,6 +160,7 @@ function buildUI() {
         <div id="mm-cat-lottie" style="width:36px;height:36px;flex:0 0 36px"></div>
         <span id="mm-header-title">妙喵私教</span>
         <span id="mm-state-badge">准备中</span>
+        <button id="mm-site" title="访问个人网站">🏠</button>
         <button id="mm-mute" title="音效开关">🔊</button>
         <button id="mm-close">✕</button>
       </div>
@@ -267,6 +268,12 @@ function bindEvents(root) {
     micBtn.addEventListener("touchstart", (e) => { e.preventDefault(); handleVoiceStart(); });
     micBtn.addEventListener("touchend", (e) => { e.preventDefault(); handleVoiceStop(); });
   }
+
+  root.querySelector("#mm-site")?.addEventListener("click", () => {
+    const siteUrl = "https://miaomiao-cat.duckdns.org";
+    const params = state.videoId ? `?video_id=${encodeURIComponent(state.videoId)}` : "";
+    window.open(`${siteUrl}/community${params}`, "_blank");
+  });
 
   root.querySelectorAll(".mm-quick-btn").forEach((btn) => {
     btn.addEventListener("click", () => {

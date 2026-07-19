@@ -7,10 +7,11 @@ import { ContentCard } from './content-card'
 
 interface ContentFeedProps {
   onOpenDetail: (item: ContentItem, topicId: string) => void
+  initialVideoId?: string | null
 }
 
-export function ContentFeed({ onOpenDetail }: ContentFeedProps) {
-  const [filter, setFilter] = useState('all')
+export function ContentFeed({ onOpenDetail, initialVideoId }: ContentFeedProps) {
+  const [filter, setFilter] = useState(initialVideoId ? 'video-linked' : 'all')
   const [items, setItems] = useState<ContentItem[]>([])
   const [topicIds, setTopicIds] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
@@ -22,7 +23,7 @@ export function ContentFeed({ onOpenDetail }: ContentFeedProps) {
     setError(false)
 
     Promise.all([
-      fetchTopics(undefined, undefined, 50),
+      fetchTopics(undefined, initialVideoId || undefined, 50),
       Promise.resolve(fetchBlogPostsAsContentItems()),
     ])
       .then(([topicsRes, blogItems]) => {

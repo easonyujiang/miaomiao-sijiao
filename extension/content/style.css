@@ -9,34 +9,47 @@
   user-select: none;
 }
 
-/* 猫咪气泡按钮：无外圈桌宠样式，透明背景+投影，可拖拽 */
+/* 猫咪气泡按钮：透明背景+投影，可拖拽 */
 #mm-bubble {
   width: 84px;
   height: 84px;
-  background: transparent;
+  background: rgba(255, 245, 248, 0.92);
+  border: 2px solid #ffd6e4;
+  border-radius: 50%;
   cursor: grab;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
-  transition: transform 0.2s;
-  border: none;
+  transition: transform 0.2s, background 0.2s, box-shadow 0.2s;
   outline: none;
   -webkit-user-drag: none;
   touch-action: none;
+  box-shadow: 0 6px 16px rgba(255, 150, 180, 0.35);
+  backdrop-filter: blur(4px);
+}
+#mm-bubble::before {
+  content: "🐾";
+  position: absolute;
+  font-size: 32px;
+  opacity: 0.25;
+  pointer-events: none;
 }
 #mm-bubble:active { cursor: grabbing; }
 #mm-bubble-lottie {
-  width: 84px;
-  height: 84px;
+  width: 74px;
+  height: 74px;
   pointer-events: none;
-  filter: drop-shadow(0 6px 10px rgba(60, 20, 40, 0.35));
+  filter: drop-shadow(0 2px 4px rgba(60, 20, 40, 0.2));
 }
 #mm-bubble:hover {
   transform: scale(1.08);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 8px 20px rgba(255, 150, 180, 0.45);
 }
 #mm-bubble.mm-listening {
   animation: mm-pulse 1s ease-in-out infinite;
+  background: rgba(255, 230, 238, 0.98);
 }
 @keyframes mm-pulse {
   0%, 100% { transform: scale(1); }
@@ -49,6 +62,7 @@
   bottom: 96px;
   right: 0;
   width: 330px;
+  max-height: calc(100vh - 140px);
   background: rgba(255, 253, 254, 0.97);
   border: 1px solid #ffd6e4;
   border-radius: 18px;
@@ -159,43 +173,43 @@
   font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.3px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 #mm-state-badge {
   font-size: 11px;
-  padding: 2px 10px;
+  padding: 2px 8px;
   border-radius: 20px;
   background: #fff3e6;
   color: #d98a3d;
   border: 1px solid #ffd9b0;
+  flex-shrink: 0;
+  max-width: 80px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-#mm-close {
+#mm-close,
+#mm-mute,
+#mm-site {
   width: 24px;
   height: 24px;
   border: none;
   background: none;
   color: #8a7a85;
   cursor: pointer;
-  font-size: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-}
-#mm-close:hover { background: #fff0f5; }
-
-#mm-mute {
-  width: 24px;
-  height: 24px;
-  border: none;
-  background: none;
-  cursor: pointer;
   font-size: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 6px;
+  flex-shrink: 0;
 }
-#mm-mute:hover { background: #fff0f5; }
+#mm-close:hover,
+#mm-mute:hover,
+#mm-site:hover { background: #fff0f5; }
 
 /* 判卷星星：逐颗弹跳入场（JS 里 setCatState 触发，每颗 200ms） */
 .mm-stars {
@@ -218,8 +232,9 @@
 
 /* 消息区 */
 #mm-messages {
-  flex: 1;
-  max-height: 260px;
+  flex: 1 1 auto;
+  min-height: 120px;
+  max-height: min(360px, calc(100vh - 340px));
   overflow-y: auto;
   padding: 12px 16px;
   display: flex;
@@ -275,6 +290,7 @@
   gap: 6px;
   flex-wrap: wrap;
   border-top: 1px solid #ffe8f0;
+  flex-shrink: 0;
 }
 .mm-quick-btn {
   font-size: 12px;
@@ -295,10 +311,28 @@
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
+  padding-top: 24px;
   border-top: 1px solid #ffe8f0;
+  position: relative;
+  flex-shrink: 0;
+  min-height: 58px;
+}
+#mm-voice-state {
+  position: absolute;
+  top: 6px;
+  left: 16px;
+  font-size: 11px;
+  color: #e06a8f;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+#mm-voice-state.mm-voice-active {
+  opacity: 1;
 }
 #mm-input {
   flex: 1;
+  min-width: 0;
   background: #fff;
   border: 1px solid #e8d8e0;
   border-radius: 20px;
@@ -309,22 +343,46 @@
 }
 #mm-input::placeholder { color: #b8a4b0; }
 #mm-input:focus { border-color: #ff96b4; }
-#mm-send {
+#mm-send, #mm-mic {
   width: 32px;
   height: 32px;
   border-radius: 50%;
   border: none;
-  background: linear-gradient(135deg, #ff96b4, #ffb26e);
-  color: #fff;
-  font-size: 15px;
-  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+  user-select: none;
+  -webkit-user-drag: none;
+  touch-action: none;
+}
+#mm-send {
+  background: linear-gradient(135deg, #ff96b4, #ffb26e);
+  color: #fff;
+  font-size: 15px;
   box-shadow: 0 2px 8px rgba(255, 150, 180, 0.35);
 }
 #mm-send:hover { opacity: 0.88; }
+#mm-mic {
+  background: #fff;
+  border: 1px solid #e8d8e0;
+  color: #e06a8f;
+  font-size: 15px;
+}
+#mm-mic:hover { background: #fff0f5; }
+#mm-mic:active,
+#mm-mic.mm-listening {
+  background: #ff96b4;
+  color: #fff;
+  border-color: #ff96b4;
+  transform: scale(1.05);
+}
+#mm-mic:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 /* 加载动画 */
 .mm-typing {
@@ -357,52 +415,4 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-/* 语音输入 */
-#mm-input-area { position: relative; }
-#mm-voice-state {
-  position: absolute;
-  top: -18px;
-  left: 16px;
-  font-size: 11px;
-  color: #e06a8f;
-  opacity: 0;
-  transition: opacity 0.15s;
-  pointer-events: none;
-}
-#mm-voice-state.mm-voice-active {
-  opacity: 1;
-}
-
-#mm-mic {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: none;
-  background: #fff;
-  border: 1px solid #e8d8e0;
-  color: #e06a8f;
-  font-size: 15px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: background 0.15s, transform 0.15s;
-  user-select: none;
-  -webkit-user-drag: none;
-  touch-action: none;
-}
-#mm-mic:hover { background: #fff0f5; }
-#mm-mic:active,
-#mm-mic.mm-listening {
-  background: #ff96b4;
-  color: #fff;
-  border-color: #ff96b4;
-  transform: scale(1.05);
-}
-#mm-mic:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }

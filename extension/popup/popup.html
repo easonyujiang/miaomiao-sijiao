@@ -7,43 +7,88 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
-      width: 120px;
-      height: 120px;
+      width: 180px;
       background: #fff;
+      font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
     }
     body {
+      padding: 14px;
       display: flex;
+      flex-direction: column;
       align-items: center;
-      justify-content: center;
+      gap: 10px;
     }
     #mm-popup-cat {
-      width: 84px;
-      height: 84px;
+      width: 72px;
+      height: 72px;
       border: none;
-      background: transparent;
+      border-radius: 50%;
+      background: #fff5f8;
+      border: 2px solid #ffd6e4;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 0;
-      transition: transform 0.2s;
-    }
-    #mm-popup-cat:hover { transform: scale(1.08); }
-    #mm-popup-cat img {
-      width: 72px;
-      height: 72px;
-      border-radius: 50%;
-      background: #fff5f8;
-      border: 2px solid #ffd6e4;
+      transition: transform 0.2s, box-shadow 0.2s;
       box-shadow: 0 4px 14px rgba(255, 150, 180, 0.35);
+    }
+    #mm-popup-cat:hover { transform: scale(1.06); box-shadow: 0 6px 18px rgba(255, 150, 180, 0.45); }
+    #mm-popup-cat img {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
       pointer-events: none;
     }
+    .mm-popup-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #4a3340;
+    }
+    .mm-popup-desc {
+      font-size: 11px;
+      color: #8a7a85;
+      text-align: center;
+      line-height: 1.5;
+    }
+    .mm-popup-btns {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
+      margin-top: 4px;
+    }
+    .mm-popup-btn {
+      width: 100%;
+      padding: 8px 0;
+      border-radius: 10px;
+      border: none;
+      background: linear-gradient(135deg, #ff96b4, #ffb26e);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .mm-popup-btn:hover { opacity: 0.9; }
+    .mm-popup-btn.secondary {
+      background: #fff;
+      border: 1px solid #ffd6e4;
+      color: #e06a8f;
+    }
+    .mm-popup-btn.secondary:hover { background: #fff0f5; }
   </style>
 </head>
 <body>
   <button id="mm-popup-cat" title="召唤妙喵">
     <img src="../assets/cat128.png" alt="妙喵" />
   </button>
+  <div class="mm-popup-title">妙喵私教</div>
+  <div class="mm-popup-desc">把教学视频变成一对一私教</div>
+  <div class="mm-popup-btns">
+    <button id="mm-popup-summon" class="mm-popup-btn">🐾 召唤当前页面</button>
+    <button id="mm-popup-site" class="mm-popup-btn secondary">🏠 访问个人网站</button>
+  </div>
   <script src="popup.js"></script>
 </body>
 </html>

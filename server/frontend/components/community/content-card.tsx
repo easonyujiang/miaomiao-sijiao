@@ -56,9 +56,15 @@ export function ContentCard({ item, onOpen }: ContentCardProps) {
               {typeLabels[item.type]}
             </span>
             {item.videoId && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] text-blue-500">
-                🔗 视频讨论
-              </span>
+              <a
+                href={item.videoId.startsWith('BV') ? `https://www.bilibili.com/video/${item.videoId}` : `https://www.douyin.com/video/${item.videoId.replace(/^DY_/, '')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] text-blue-500 hover:bg-blue-100"
+              >
+                ▶ 看视频
+              </a>
             )}
             <span className="text-[10px] text-neutral-400">{item.createdAt}</span>
           </div>
