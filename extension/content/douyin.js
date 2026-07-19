@@ -171,7 +171,9 @@ function buildUI() {
         <button class="mm-quick-btn" data-action="replay">回到关键点</button>
       </div>
       <div id="mm-input-area">
+        <div id="mm-voice-state"></div>
         <input id="mm-input" type="text" placeholder="问妙喵..." />
+        <button id="mm-mic" title="按住说话">🎤</button>
         <button id="mm-send">➤</button>
       </div>
     </div>
@@ -257,6 +259,15 @@ function bindEvents(root) {
     }
   });
 
+  const micBtn = root.querySelector("#mm-mic");
+  if (micBtn) {
+    micBtn.addEventListener("mousedown", handleVoiceStart);
+    micBtn.addEventListener("mouseup", handleVoiceStop);
+    micBtn.addEventListener("mouseleave", handleVoiceStop);
+    micBtn.addEventListener("touchstart", (e) => { e.preventDefault(); handleVoiceStart(); });
+    micBtn.addEventListener("touchend", (e) => { e.preventDefault(); handleVoiceStop(); });
+  }
+
   root.querySelectorAll(".mm-quick-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const action = btn.dataset.action;
@@ -268,6 +279,63 @@ function bindEvents(root) {
       sendMessage(queries[action] || action);
     });
   });
+}
+
+// ── 语音输入 ─────────────────────────────────────────────
+let voiceRecording = false;
+
+function setVoiceState(text, active = false) {
+  const el = document.getElementById("mm-voice-state");
+  if (!el) return;
+  el.textContent = text;
+  el.classList.toggle("mm-voice-active", active);
+}
+
+function handleVoiceStart() {
+  if (!MiaoVoice || !MiaoVoice.isSupported()) {
+    appendMessage("浏览器不支持录音", "cat");
+    return;
+  }
+  voiceRecording = true;
+  setVoiceState("正在听…", true);
+  const mic = document.getElementById("mm-mic");
+  if (mic) mic.classList.add("mm-listening");
+  MiaoVoice.start((blob, err) => {
+    voiceRecording = false;
+    setVoiceState("", false);
+    if (mic) mic.classList.remove("mm-listening");
+    if (err || !blob) {
+      appendMessage(err ? `录音失败：${err}` : "没有录制到声音", "cat");
+      return;
+    }
+    void handleVoiceSubmit(blob);
+  });
+}
+
+function handleVoiceStop() {
+  if (voiceRecording && MiaoVoice) {
+    MiaoVoice.stop();
+  }
+}
+
+async function handleVoiceSubmit(blob) {
+  const input = document.getElementById("mm-input");
+  if (input) input.placeholder = "识别中…";
+  appendMessage("🎤 识别中…", "user");
+
+  const res = await MiaoVoice.upload(blob, API_BASE);
+  // 移除 "识别中…" 临时消息
+  const tempMsg = document.querySelector(".mm-msg.mm-user:last-child");
+  if (tempMsg && tempMsg.textContent === "🎤 识别中…") tempMsg.remove();
+
+  if (!res.ok || !res.text) {
+    appendMessage(res.text ? `没有听清：${res.error}` : "语音没有识别到内容，请再说一遍", "cat");
+    if (input) input.placeholder = "问妙喵...";
+    return;
+  }
+
+  appendMessage(res.text, "user");
+  await sendMessage(res.text);
 }
 
 function togglePanel(forceOpen) {

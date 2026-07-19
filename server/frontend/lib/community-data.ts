@@ -1,6 +1,6 @@
 export type ContentItem = {
   id: string
-  type: 'video' | 'question' | 'discussion' | 'share'
+  type: 'video' | 'question' | 'discussion' | 'share' | 'blog'
   title: string
   description: string
   author: { name: string; avatar: string }
@@ -12,6 +12,8 @@ export type ContentItem = {
   commentCount: number
   icon?: string
   videoId?: string
+  source?: 'community' | 'blog'
+  href?: string
 }
 
 export type Comment = {
@@ -26,10 +28,9 @@ export type Comment = {
 }
 
 export const CATEGORIES = [
-  { key: '', label: '全部' },
-  { key: 'question', label: '❓ 提问' },
-  { key: 'discussion', label: '💬 讨论' },
-  { key: 'showcase', label: '🎬 展示' },
-  { key: 'feedback', label: '💡 反馈' },
-  { key: 'video-linked', label: '🔗 关联视频' },
+  { key: 'all', label: '全部' },
+  { key: 'blog', label: '文章' },
+  { key: 'question', label: '问题' },
+  { key: 'discussion', label: '讨论' },
+  { key: 'video-linked', label: '视频关联' },
 ]

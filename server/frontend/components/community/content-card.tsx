@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'motion/react'
-import { Play, HelpCircle, MessageSquare, Share2, Heart, MessageCircle } from 'lucide-react'
+import { Play, HelpCircle, MessageSquare, Share2, BookOpen, Heart, MessageCircle } from 'lucide-react'
 import type { ContentItem } from '@/lib/community-data'
 
 const typeIcons: Record<string, React.ReactNode> = {
@@ -9,6 +9,7 @@ const typeIcons: Record<string, React.ReactNode> = {
   question: <HelpCircle className="h-3.5 w-3.5" />,
   discussion: <MessageSquare className="h-3.5 w-3.5" />,
   share: <Share2 className="h-3.5 w-3.5" />,
+  blog: <BookOpen className="h-3.5 w-3.5" />,
 }
 
 const typeLabels: Record<string, string> = {
@@ -16,37 +17,22 @@ const typeLabels: Record<string, string> = {
   question: '提问',
   discussion: '讨论',
   share: '分享',
+  blog: '文章',
 }
 
 interface ContentCardProps {
   item: ContentItem
-  isSelected: boolean
-  onSelect: () => void
   onOpen: () => void
 }
 
-export function ContentCard({ item, isSelected, onSelect, onOpen }: ContentCardProps) {
+export function ContentCard({ item, onOpen }: ContentCardProps) {
   return (
     <motion.div
       layout
-      onClick={onSelect}
-      onDoubleClick={onOpen}
-      animate={
-        isSelected
-          ? {
-              borderColor: 'rgb(147 197 253)',
-              boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.15)',
-            }
-          : {
-              borderColor: 'rgb(229 229 229)',
-              boxShadow: '0 0 0 0px rgba(59, 130, 246, 0)',
-            }
-      }
-      transition={{ duration: 0.25 }}
-      className="cursor-pointer rounded-xl border bg-white p-4 hover:border-neutral-300 transition-colors"
+      onClick={onOpen}
+      className="cursor-pointer rounded-xl border border-neutral-200 bg-white p-4 hover:border-neutral-300 transition-colors"
       role="button"
       tabIndex={0}
-      aria-selected={isSelected}
       onKeyDown={(e) => {
         if (e.key === 'Enter') onOpen()
       }}
@@ -57,7 +43,7 @@ export function ContentCard({ item, isSelected, onSelect, onOpen }: ContentCardP
           className={`h-20 w-28 shrink-0 rounded-lg bg-gradient-to-br ${item.thumbnailColor} flex items-center justify-center`}
         >
           <span className="text-white/80 text-2xl font-bold">
-            {item.type === 'video' ? '▶' : item.type === 'question' ? '❓' : item.type === 'discussion' ? '💬' : '📤'}
+            {item.type === 'video' ? '▶' : item.type === 'question' ? '❓' : item.type === 'discussion' ? '💬' : item.type === 'blog' ? '📄' : '📤'}
           </span>
         </div>
 
@@ -109,25 +95,6 @@ export function ContentCard({ item, isSelected, onSelect, onOpen }: ContentCardP
           </div>
         </div>
       </div>
-
-      {/* Open button — visible when selected */}
-      {isSelected && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-          className="mt-3 pt-3 border-t border-neutral-100"
-        >
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onOpen()
-            }}
-            className="w-full rounded-lg bg-blue-50 py-2 text-xs font-medium text-blue-600 hover:bg-blue-100 transition-colors"
-          >
-            查看详情 →
-          </button>
-        </motion.div>
-      )}
     </motion.div>
   )
 }

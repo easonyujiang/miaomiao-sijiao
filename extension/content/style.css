@@ -358,3 +358,51 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* 语音输入 */
+#mm-input-area { position: relative; }
+#mm-voice-state {
+  position: absolute;
+  top: -18px;
+  left: 16px;
+  font-size: 11px;
+  color: #e06a8f;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+#mm-voice-state.mm-voice-active {
+  opacity: 1;
+}
+
+#mm-mic {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: #fff;
+  border: 1px solid #e8d8e0;
+  color: #e06a8f;
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s, transform 0.15s;
+  user-select: none;
+  -webkit-user-drag: none;
+  touch-action: none;
+}
+#mm-mic:hover { background: #fff0f5; }
+#mm-mic:active,
+#mm-mic.mm-listening {
+  background: #ff96b4;
+  color: #fff;
+  border-color: #ff96b4;
+  transform: scale(1.05);
+}
+#mm-mic:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

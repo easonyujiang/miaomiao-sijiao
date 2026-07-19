@@ -24,6 +24,32 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true; // keep sendResponse channel open for async
   }
 
+  if (msg.type === "UPLOAD_AUDIO") {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), msg.timeout || 30000);
+
+    (async () => {
+      try {
+        const blob = await fetch(`data:application/octet-stream;base64,${msg.audio}`).then(r => r.blob());
+        const formData = new FormData();
+        formData.append("audio", blob, msg.filename || "recording.webm");
+
+        const res = await fetch(`${msg.baseUrl || "http://localhost:8000"}/api/speech-to-text`, {
+          method: "POST",
+          body: formData,
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+        const text = await res.text();
+        sendResponse({ ok: res.ok, status: res.status, text });
+      } catch (e) {
+        clearTimeout(timer);
+        sendResponse({ error: e.message || String(e) });
+      }
+    })();
+    return true;
+  }
+
   if (msg.type === "PING") {
     sendResponse({ status: "ok" });
   }

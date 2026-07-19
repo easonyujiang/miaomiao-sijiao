@@ -36,3 +36,6 @@ yarn-error.log*
 
 # Credentials
 .ssh-credentials.json
+deploy-community.ps1
+miaomiao-nginx.conf
+

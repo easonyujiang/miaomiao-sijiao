@@ -116,6 +116,10 @@ def create_app(site_db_path: str | None = None) -> FastAPI:
     from ewa.community.api import router as community_router
     app.include_router(community_router)
 
+    # 🎤 语音识别模块
+    from ewa.speech import router as speech_router
+    app.include_router(speech_router)
+
     # 健康检查
     @app.get("/health")
     async def health():

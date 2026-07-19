@@ -26,6 +26,12 @@ export function ContentDetail({ item, topicId, onBack }: ContentDetailProps) {
   const [viewCount, setViewCount] = useState(0)
 
   useEffect(() => {
+    if (item.source === 'blog' && item.href) {
+      window.location.href = item.href
+    }
+  }, [item])
+
+  useEffect(() => {
     if (!showComments) return
     fetchTopicDetail(topicId)
       .then((data) => {

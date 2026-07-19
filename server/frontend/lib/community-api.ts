@@ -1,3 +1,6 @@
+import { posts } from '@/lib/posts'
+import type { ContentItem } from '@/lib/community-data'
+
 const CATEGORY_MAP_TO_TYPE: Record<string, 'video' | 'question' | 'discussion' | 'share'> = {
   question: 'question',
   discussion: 'discussion',
@@ -86,6 +89,25 @@ export function topicToContentItem(topic: ApiTopic) {
     icon: TYPE_ICONS[type] ?? '💬',
     videoId: topic.video_id ?? undefined,
   }
+}
+
+export function fetchBlogPostsAsContentItems(): ContentItem[] {
+  return posts.map((post) => ({
+    id: post.meta.slug,
+    type: 'blog',
+    title: post.meta.title,
+    description: post.meta.summary,
+    author: { name: '妙喵', avatar: '妙喵' },
+    thumbnailColor: 'from-violet-500 to-purple-600',
+    category: 'blog',
+    tags: post.meta.tags,
+    createdAt: post.meta.date,
+    likes: 0,
+    commentCount: 0,
+    icon: '📄',
+    source: 'blog',
+    href: `/blog/${post.meta.slug}/`,
+  }))
 }
 
 export function buildReplyTree(replies: ApiReply[]): Array<ApiReply & { replies: ApiReply[] }> {
