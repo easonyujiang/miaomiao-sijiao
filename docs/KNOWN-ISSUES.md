@@ -72,6 +72,15 @@
 - **现象**: 通关固定显示"罗翔老师的正当防卫精讲"；服务器地址/站点 URL 硬编码 5 处含已弃用的 duckdns 域名
 - **修复**: 通关文案改用课程标题；新增 `extension/config.js` + popup 服务器地址设置（chrome.storage），manifest 清理无效权限
 
+### BUG-016: community_topics 缺 video_id 列（2026-07-20）
+- **现象**: community API 按 `video_id` 过滤话题时返回 500（`no such column: video_id`）；`schema.sql` 从未包含该列
+- **修复**: `schema.sql` 补充 `video_id` 列 + `SiteRepository._ensure_columns` 幂等迁移（`ALTER TABLE`），生产重启后自动补齐
+
+### BUG-017: 视频摘要 LLM 幻觉 + seek 按钮落点不准（2026-07-20）
+- **现象**: 视频摘要编造字幕之外的案例（如"昆山龙哥案"）；回答中的 seek 按钮固定跳转到视频开头
+- **原因**: 根因之一是字幕路径 bug（BUG-012）导致一直用残缺 segments 兜底，LLM 缺少真实字幕约束
+- **修复**: prompt 强制只引用字幕原文 + 必带 `[mm:ss]` 时间戳；`_answer_video_query` 提取回答中首个时间戳作为 seek 目标
+
 ## 已知问题（待修复）
 
 ### ISSUE-009: B站字幕接口需要登录 cookie（2026-07-20 记录，暂缓）
@@ -110,4 +119,14 @@
 
 ### ISSUE-008: 部署流程手动
 - **描述**: 每次更新需手动 `git pull + npm run build + systemctl restart`
+- **优先级**: 低
+
+### ISSUE-010: 语音转写与社区发帖接口无鉴权（2026-07-20 记录）
+- **文件**: `/api/speech-to-text`, `/api/community`（发帖相关接口）
+- **描述**: 两个接口均为公开访问，仅有限流保护，无任何鉴权；可能被滥用消耗 ASR 额度或灌水发帖
+- **优先级**: 中 — Demo 阶段可接受，正式化前需加防护（Token / 登录态 / 更严格限流）
+
+### ISSUE-011: 插件 popup 修改服务器地址后跳转链接不同步（2026-07-20 记录）
+- **文件**: `extension/config.js`, `extension/content/bilibili.js`
+- **描述**: popup 中修改"服务器地址"后，content script 里 `SITE_URL` 跳转链接仍使用默认值（`getSiteUrl` 已就绪但未接线）；需刷新页面且仅 API 地址生效
 - **优先级**: 低

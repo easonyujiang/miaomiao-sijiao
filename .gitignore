@@ -24,6 +24,7 @@ server/frontend/node_modules/
 server/frontend/.next/
 server/frontend/dist/
 server/frontend/.env.local
+server/frontend/tsconfig.tsbuildinfo
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
