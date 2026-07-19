@@ -15,6 +15,11 @@ const nextConfig = {
   pageExtensions: ['js', 'jsx', 'md', 'mdx', 'ts', 'tsx'],
   poweredByHeader: false,
   staticPageGenerationTimeout: 300,
+  async redirects() {
+    return [
+      { source: '/', destination: '/community', permanent: true },
+    ]
+  },
   // 静态导出不支持 rewrites；dev 模式下保留以便 /api/* 代理到后端
   ...(process.env.NODE_ENV === 'production'
     ? {}
