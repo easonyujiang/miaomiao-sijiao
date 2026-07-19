@@ -3,35 +3,68 @@
   "name": "妙喵私教",
   "version": "0.1.0",
   "description": "把抖音/B站教学视频变成一对一私教——妙喵帮你看视频、出题、纠错、跳片段",
-  "permissions": ["storage", "tabs"],
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
   "host_permissions": [
     "https://www.douyin.com/*",
     "https://www.bilibili.com/*",
-    "http://localhost:8000/*"
+    "http://8.130.190.169:8000/*",
+    "https://8.130.190.169/*",
+    "https://miaomiao-cat.duckdns.org/*"
   ],
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
     {
-      "matches": ["https://www.douyin.com/video/*"],
-      "js": ["lib/howler.min.js", "lib/lottie.min.js", "lib/confetti.browser.js", "sound.js", "pet.js", "content/voice.js", "content/douyin.js"],
-
-      "css": ["content/style.css"],
+      "matches": [
+        "https://www.douyin.com/video/*"
+      ],
+      "js": [
+        "lib/howler.min.js",
+        "lib/lottie.min.js",
+        "lib/confetti.browser.js",
+        "sound.js",
+        "pet.js",
+        "content/voice.js",
+        "content/douyin.js"
+      ],
+      "css": [
+        "content/style.css"
+      ],
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://www.bilibili.com/video/*"],
-      "js": ["lib/howler.min.js", "lib/lottie.min.js", "lib/confetti.browser.js", "sound.js", "pet.js", "content/voice.js", "content/bilibili.js"],
-
-      "css": ["content/style.css"],
+      "matches": [
+        "https://www.bilibili.com/video/*"
+      ],
+      "js": [
+        "lib/howler.min.js",
+        "lib/lottie.min.js",
+        "lib/confetti.browser.js",
+        "sound.js",
+        "pet.js",
+        "content/voice.js",
+        "content/bilibili.js"
+      ],
+      "css": [
+        "content/style.css"
+      ],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["sounds/*", "lottie/*"],
-      "matches": ["*://*.bilibili.com/*", "*://*.douyin.com/*"]
+      "resources": [
+        "sounds/*",
+        "lottie/*"
+      ],
+      "matches": [
+        "*://*.bilibili.com/*",
+        "*://*.douyin.com/*"
+      ]
     }
   ],
   "action": {

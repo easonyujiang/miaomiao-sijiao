@@ -83,7 +83,7 @@ var MiaoVoice = {
     this.recorder = null;
   },
 
-  upload(blob, baseUrl = "http://localhost:8000") {
+  upload(blob, baseUrl = "http://8.130.190.169:8000") {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.readAsDataURL(blob);

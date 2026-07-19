@@ -4,7 +4,7 @@
  * 复用与抖音脚本相同的核心逻辑，直接读取B站字幕
  */
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "http://8.130.190.169:8000";
 const PLATFORM = "bilibili";
 
 let state = {

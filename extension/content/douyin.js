@@ -3,7 +3,7 @@
  * 注入 douyin.com/video/* 页面
  */
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "http://8.130.190.169:8000";
 const PLATFORM = "douyin";
 
 // ── 状态 ────────────────────────────────────────────────
