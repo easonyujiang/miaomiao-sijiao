@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from typing import Any
 
@@ -38,13 +39,13 @@ class LLMClient:
     >>> result = await client.chat_json("你是JSON评分助手", "{...}")
     """
 
-    # Provider 配置
+    # Provider 配置（api_url / model 可用环境变量覆盖，适配 Kimi Coding Plan 等兼容端点）
     _PROVIDERS = [
         {
             "name": "kimi",
             "api_key_attr": "kimi_key",
-            "api_url": "https://api.moonshot.cn/v1/chat/completions",
-            "model": "moonshot-v1-8k",
+            "api_url": os.getenv("MOONSHOT_API_BASE", "https://api.moonshot.cn/v1/chat/completions"),
+            "model": os.getenv("MOONSHOT_MODEL", "moonshot-v1-8k"),
         },
         {
             "name": "deepseek",
@@ -88,6 +89,11 @@ class LLMClient:
             if not _is_valid_key(api_key):
                 continue
 
+            # kimi-for-coding 等 reasoning 模型仅允许 temperature=1，可用环境变量覆盖
+            temp = temperature
+            if provider["name"] == "kimi":
+                temp = float(os.getenv("MOONSHOT_TEMPERATURE", temperature))
+
             result = await self._call(
                 api_url=provider["api_url"],
                 api_key=api_key,
@@ -95,7 +101,7 @@ class LLMClient:
                 system=system,
                 user=user,
                 max_tokens=max_tokens,
-                temperature=temperature,
+                temperature=temp,
                 timeout=timeout,
             )
             if result is not None:

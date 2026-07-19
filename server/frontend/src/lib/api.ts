@@ -1,4 +1,5 @@
 import type { SiteProfile, DiaryEntry } from '../data/siteProfile'
+import type { SpeechSegment } from '@/src/data/cat-states'
 
 const DEFAULT_SLUG = process.env.NEXT_PUBLIC_SITE_SLUG || 'ashley'
 
@@ -17,7 +18,7 @@ export type AgentAction = {
 
 export type ChatResponse = {
   answer: string
-  transcript?: string
+  segments?: SpeechSegment[]
   expression: 'thinking' | 'excited'
   intent: string
   sources: Array<Record<string, unknown>>
@@ -71,29 +72,6 @@ export function chatWithPet(
       video_id: context.videoId,
       current_time_ms: context.currentTimeMs ?? 0,
     }),
-  })
-}
-
-export function chatWithVoice(
-  audioBlob: Blob,
-  context: { sessionId?: string; videoId?: string; currentTimeMs?: number },
-  slug = DEFAULT_SLUG,
-) {
-  const formData = new FormData()
-  formData.append('audio', audioBlob, 'recording.webm')
-  if (context.sessionId) formData.append('session_id', context.sessionId)
-  if (context.videoId) formData.append('video_id', context.videoId)
-  formData.append('current_time_ms', String(context.currentTimeMs ?? 0))
-
-  return fetch(`/api/site/${slug}/voice-chat`, {
-    method: 'POST',
-    body: formData,
-  }).then(async (response) => {
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({ detail: '语音聊天服务不可用' }))
-      throw new Error(data.detail || `API ${response.status}`)
-    }
-    return response.json() as Promise<ChatResponse>
   })
 }
 

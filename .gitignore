@@ -17,12 +17,13 @@ __pycache__/
 *.sqlite
 *.sqlite3
 knowledge-base/
+data/miaomiao/tts_cache/
 
 # Frontend
-server/frontend/node_modules/
-server/frontend/.next/
-server/frontend/dist/
-server/frontend/.env.local
+frontend/node_modules/
+frontend/.next/
+frontend/dist/
+frontend/.env.local
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -33,9 +34,3 @@ yarn-error.log*
 *.swp
 *.tmp
 *.log
-
-# Credentials
-.ssh-credentials.json
-deploy-community.ps1
-miaomiao-nginx.conf
-

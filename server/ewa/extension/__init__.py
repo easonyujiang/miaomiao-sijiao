@@ -10,7 +10,7 @@
 
 from ewa.extension.scoring import score_answer, score_answer_with_llm
 from ewa.extension.store import LessonStore, get_session, persist_session, set_db_path
-from ewa.extension.feedback import build_cat_message, calc_cat_state
+from ewa.extension.feedback import build_cat_message, build_cat_feedback, calc_cat_state
 from ewa.extension.faq import match_offline_faq
 from ewa.extension.subtitle import (
     get_video_cache,

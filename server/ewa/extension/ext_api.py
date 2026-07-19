@@ -15,13 +15,13 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
-from ewa.config import SUBTITLE_DIR, MOONSHOT_API_KEY, DEEPSEEK_API_KEY
-from ewa.llm.client import _is_valid_key
+from ewa.config import SUBTITLE_DIR, MOONSHOT_API_KEY, DEEPSEEK_API_KEY, EWA_EXTENSION_TOKEN
 from ewa.llm import LLMClient
 from ewa.extension.faq import match_offline_faq
+from ewa.extension.mood import build_segments
 from ewa.extension.subtitle import (
     get_video_cache,
     load_subtitles,
@@ -31,6 +31,16 @@ from ewa.extension.subtitle import (
 )
 
 router = APIRouter(prefix="/api/ext", tags=["extension"])
+
+
+# ── 扩展安全校验 ──────────────────────────────────────────────
+
+def _verify_extension_token(x_extension_token: str | None = Header(default=None, alias="X-Extension-Token")) -> None:
+    """校验 Chrome 扩展请求的共享 token。"""
+    if not EWA_EXTENSION_TOKEN:
+        return
+    if x_extension_token != EWA_EXTENSION_TOKEN:
+        raise HTTPException(status_code=403, detail="Invalid extension token")
 
 
 # ── 请求/响应模型 ────────────────────────────────────────────
@@ -53,7 +63,7 @@ class ChatRequest(BaseModel):
 @router.get("/health")
 async def health() -> dict[str, Any]:
     """连通性检查（Extension 可用此端点判断后端是否在线）。"""
-    llm_available = _is_valid_key(MOONSHOT_API_KEY) or _is_valid_key(DEEPSEEK_API_KEY)
+    llm_available = bool(MOONSHOT_API_KEY or DEEPSEEK_API_KEY)
     subtitle_count = len(list(SUBTITLE_DIR.glob("*.json"))) if SUBTITLE_DIR.exists() else 0
     return {
         "status": "ok",
@@ -64,7 +74,10 @@ async def health() -> dict[str, Any]:
 
 
 @router.post("/register_video")
-async def register_video(req: RegisterVideoRequest) -> dict[str, Any]:
+async def register_video(
+    req: RegisterVideoRequest,
+    _token: None = Depends(_verify_extension_token),
+) -> dict[str, Any]:
     """注册视频：
     - 抖音视频：用标题匹配 B 站字幕库
     - B站视频：直接检查字幕是否存在
@@ -107,13 +120,18 @@ async def register_video(req: RegisterVideoRequest) -> dict[str, Any]:
 
 
 @router.post("/chat")
-async def chat(req: ChatRequest) -> dict[str, Any]:
+async def chat(
+    req: ChatRequest,
+    _token: None = Depends(_verify_extension_token),
+) -> dict[str, Any]:
     """视频问答：根据当前时间戳，截取字幕上下文，调用 LLM 作答。
 
     三层回退策略：
     1. LLM（Kimi → DeepSeek）— 最佳
     2. 字幕搜索 — LLM 不可用时搜索相关字幕片段作为回答依据
     3. 离线 FAQ — 匹配预设知识库
+
+    返回字段新增 segments：按句拆分，每句含 form / duration_ms，便于客户端一句一切猫形态。
     """
     # 确定 bvid
     if req.platform == "douyin":
@@ -151,9 +169,10 @@ async def chat(req: ChatRequest) -> dict[str, Any]:
 {ctx_block}
 
 回答要求：
-1. 如果涉及视频中某个具体时间点，在回答末尾用格式 [SEEK:秒数] 标注，例如 [SEEK:72]
-2. 涉及专业领域的题目应引用相关法规条款或案例名，不能凭感觉作答
-3. 回答不超过200字"""
+1. 只输出纯文本，禁止 HTML、JavaScript、Markdown 代码块等可执行内容
+2. 如果涉及视频中某个具体时间点，在回答末尾用格式 [SEEK:秒数] 标注，例如 [SEEK:72]
+3. 法学题目必须引用刑法条款或案例名，不能凭感觉作答
+4. 回答不超过200字"""
 
     llm_client = LLMClient()
     llm_answer = await llm_client.chat(system, req.message, max_tokens=600)
@@ -165,8 +184,10 @@ async def chat(req: ChatRequest) -> dict[str, Any]:
             seek_to_sec = int(m.group(1))
             llm_answer = re.sub(r"\[SEEK:\d+\]", "", llm_answer).strip()
 
+        segments = build_segments(llm_answer, seek_to_sec=seek_to_sec)
         return {
             "answer": llm_answer,
+            "segments": segments,
             "seek_to_sec": seek_to_sec,
             "context_used": len(context_subs),
             "bvid": bvid,
@@ -182,12 +203,14 @@ async def chat(req: ChatRequest) -> dict[str, Any]:
                 for s in relevant
             ]
             seek_sec = relevant[0].get("start", 0) if relevant else None
+            answer = (
+                "猫猫在视频中找到了相关内容，喵~\n\n"
+                + "\n".join(lines)
+                + "\n\n💡 建议回看这些片段加深理解。"
+            )
             return {
-                "answer": (
-                    "猫猫在视频中找到了相关内容，喵~\n\n"
-                    + "\n".join(lines)
-                    + "\n\n💡 建议回看这些片段加深理解。"
-                ),
+                "answer": answer,
+                "segments": build_segments(answer, seek_to_sec=seek_sec),
                 "seek_to_sec": seek_sec,
                 "context_used": len(relevant),
                 "bvid": bvid,
@@ -197,8 +220,10 @@ async def chat(req: ChatRequest) -> dict[str, Any]:
     # ── 第三层：离线 FAQ ────────────────────────────────────
     faq_answer = match_offline_faq(req.message)
     if faq_answer:
+        answer = "🤖 猫猫暂时连不上后端大脑，但我知道这个：\n\n" + faq_answer
         return {
-            "answer": "🤖 猫猫暂时连不上后端大脑，但我知道这个：\n\n" + faq_answer,
+            "answer": answer,
+            "segments": build_segments(answer),
             "seek_to_sec": None,
             "context_used": 0,
             "bvid": bvid,
@@ -206,15 +231,17 @@ async def chat(req: ChatRequest) -> dict[str, Any]:
         }
 
     # ── 完全无数据 ──────────────────────────────────────────
+    answer = (
+        "喵呜…猫猫现在还回答不了这个问题 😿\n\n"
+        "可能的原因：\n"
+        "1. 后端 LLM 未配置（需要设置 MOONSHOT_API_KEY 或 DEEPSEEK_API_KEY）\n"
+        "2. 当前视频没有字幕数据\n"
+        "3. 这个问题不在我的知识范围内\n\n"
+        "试试问关于「正当防卫的构成要件」或直接开始答题闯关吧！"
+    )
     return {
-        "answer": (
-            "喵呜…猫猫现在还回答不了这个问题 😿\n\n"
-            "可能的原因：\n"
-            "1. 后端 LLM 未配置（需要设置 MOONSHOT_API_KEY 或 DEEPSEEK_API_KEY）\n"
-            "2. 当前视频没有字幕数据\n"
-            "3. 这个问题不在我的知识范围内\n\n"
-            "试试问关于「正当防卫的构成要件」或直接开始答题闯关吧！"
-        ),
+        "answer": answer,
+        "segments": build_segments(answer),
         "seek_to_sec": None,
         "context_used": 0,
         "bvid": bvid,

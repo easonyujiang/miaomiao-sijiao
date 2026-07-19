@@ -20,15 +20,26 @@ if _dotenv_path.exists():
 PROJECT_ROOT = _project_root
 
 # ── 数据目录 ────────────────────────────────────────────
-DATA_DIR = Path(os.getenv("EWA_DATA_DIR", PROJECT_ROOT / "data"))
-MIAOMIAO_DIR = Path(os.getenv("MIAOMIAO_DATA_DIR", DATA_DIR / "miaomiao"))
-LESSONS_DIR = Path(os.getenv("LESSONS_DATA_DIR", MIAOMIAO_DIR / "lessons"))
-SUBTITLE_DIR = Path(os.getenv("SUBTITLE_DATA_DIR", MIAOMIAO_DIR / "subtitles"))
+# 相对路径统一以项目根目录为基准，避免 CWD 不同导致测试/运行时路径不一致
+def _resolve_data_path(env_var: str, default: Path) -> Path:
+    raw = os.getenv(env_var)
+    if raw is None:
+        return (PROJECT_ROOT / default).resolve()
+    p = Path(raw)
+    if p.is_absolute():
+        return p.resolve()
+    return (PROJECT_ROOT / p).resolve()
+
+
+DATA_DIR = _resolve_data_path("EWA_DATA_DIR", Path("data"))
+MIAOMIAO_DIR = _resolve_data_path("MIAOMIAO_DATA_DIR", DATA_DIR / "miaomiao")
+LESSONS_DIR = _resolve_data_path("LESSONS_DATA_DIR", MIAOMIAO_DIR / "lessons")
+SUBTITLE_DIR = _resolve_data_path("SUBTITLE_DATA_DIR", MIAOMIAO_DIR / "subtitles")
 SCORED_VIDEOS = MIAOMIAO_DIR / "scored_videos.json"
 VIDEO_LIST = MIAOMIAO_DIR / "video_list.json"
 
 # ── 数据库 ──────────────────────────────────────────────
-SITE_DB_PATH = Path(os.getenv("EWA_SITE_DB_PATH", DATA_DIR / "miaomiao.db"))
+SITE_DB_PATH = _resolve_data_path("EWA_SITE_DB_PATH", DATA_DIR / "miaomiao.db")
 SITE_SCHEMA_PATH = Path(
     os.getenv("EWA_SITE_SCHEMA_PATH", PROJECT_ROOT / "docs" / "schema.sql")
 )
@@ -36,15 +47,9 @@ SITE_SCHEMA_PATH = Path(
 # ── LLM API Keys ────────────────────────────────────────
 MOONSHOT_API_KEY = os.getenv("MOONSHOT_API_KEY", os.getenv("KIMI_API_KEY", ""))
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
-# ── 通义千问多模态语音模型（Qwen3.5-Omni）──────────────
-QWEN_API_KEY = os.getenv("QWEN_API_KEY", "")
-QWEN_API_BASE = os.getenv(
-    "QWEN_API_BASE",
-    "https://dashscope.aliyuncs.com/compatible-mode/v1",
-)
-QWEN_VOICE_MODEL = os.getenv("QWEN_VOICE_MODEL", "qwen3.5-omni-plus")
-
-# ── 语音识别（百度短语音识别）──────────────────────────────
-BAIDU_API_KEY = os.getenv("BAIDU_API_KEY", "")
-BAIDU_SECRET_KEY = os.getenv("BAIDU_SECRET_KEY", "")
+# ── 扩展安全 ──────────────────────────────────────────────
+# Chrome Extension 与后端通信的共享 token；未设置时不校验（向后兼容）
+EWA_EXTENSION_TOKEN = os.getenv("EWA_EXTENSION_TOKEN", "")

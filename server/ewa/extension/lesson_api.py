@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from ewa.config import LESSONS_DIR
 from ewa.extension.scoring import score_answer_with_llm
 from ewa.extension.store import LessonStore, get_session, persist_session
-from ewa.extension.feedback import build_cat_message, calc_cat_state
+from ewa.extension.feedback import build_cat_message, build_cat_feedback, calc_cat_state
 
 router = APIRouter(prefix="/api/lesson", tags=["lesson"])
 
@@ -30,7 +30,10 @@ def load_lesson(lesson_id: str) -> dict | None:
     """根据 lesson_id 加载课程 JSON 数据。"""
     path = LESSONS_DIR / f"{lesson_id}.json"
     if not path.exists():
-        return None
+        jsons = list(LESSONS_DIR.glob("*.json"))
+        if not jsons:
+            return None
+        path = jsons[0]
     with open(path, encoding="utf-8") as f:
         return json.load(f)
 
@@ -39,8 +42,7 @@ def find_lesson_by_video(video_id: str) -> dict | None:
     """根据 video_id 匹配课程。"""
     for path in LESSONS_DIR.glob("*.json"):
         try:
-            with open(path, encoding="utf-8") as f:
-                data = json.load(f)
+            data = json.load(open(path, encoding="utf-8"))
             if data.get("video_id") == video_id or data.get("douyin_video_id") == video_id:
                 return data
         except Exception:
@@ -73,8 +75,11 @@ class StepCompleteRequest(BaseModel):
 
 @router.post("/load")
 async def load_lesson_api(req: LessonRequest) -> dict[str, Any]:
-    """根据视频 ID（或其他索引键）加载对应的 Lesson。"""
+    """根据视频 ID 加载对应 Lesson；未匹配时回退到默认课程。"""
     lesson = find_lesson_by_video(req.video_id)
+    if not lesson:
+        # 未找到匹配课程时，回退到默认/首个可用课程
+        lesson = load_lesson("default")
     if not lesson:
         return {"error": "no lesson found", "steps": [], "hint": "此视频尚未收录课程，请确认 video_id 是否正确或联系博主创建课程"}
 
@@ -186,7 +191,7 @@ async def quiz_submit(req: QuizSubmitRequest) -> dict[str, Any]:
     )
 
     # ── 生成妙喵反馈 ───────────────────────────────────────
-    cat_message = build_cat_message(
+    feedback = build_cat_feedback(
         passed=passed,
         matched=result["matched"],
         missed=result["missed"],
@@ -194,8 +199,9 @@ async def quiz_submit(req: QuizSubmitRequest) -> dict[str, Any]:
         attempt_num=attempt_num,
         step_title=step["title"],
         key_point=step["key_point"],
-        is_non_answer=result.get("is_non_answer", False),
+        seek_to_ms=hint_seek_ms if not passed else None,
     )
+    cat_message = feedback["cat_message"]
     if result.get("llm_comment"):
         cat_message += f"\n\n🤖 猫猫深度分析：{result['llm_comment']}"
 
@@ -225,6 +231,8 @@ async def quiz_submit(req: QuizSubmitRequest) -> dict[str, Any]:
         "matched_count": len(result["matched"]),
         "required_count": min_correct,
         "cat_message": cat_message,
+        "cat_state": feedback["cat_state"],
+        "segments": feedback["segments"],
         "seek_to_ms": hint_seek_ms if not passed else None,
         "missed_points": result["missed"] if not passed else [],
         "wrong_points": result["wrong_hits"],
