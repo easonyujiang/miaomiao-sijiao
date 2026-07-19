@@ -20,6 +20,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 #mm-cat-lottie img,
 #mm-bubble-lottie img {
@@ -43,7 +46,7 @@
 #mm-bubble {
   width: 84px;
   height: 84px;
-  background: rgba(255, 245, 248, 0.96);
+  background: rgba(255, 245, 248, 0.96) center center / 62% no-repeat;
   border: 2px solid #ffd6e4;
   border-radius: 50%;
   cursor: grab;
@@ -57,6 +60,7 @@
   touch-action: none;
   box-shadow: 0 6px 16px rgba(255, 150, 180, 0.35);
   backdrop-filter: blur(4px);
+  position: relative;
 }
 #mm-bubble::before {
   content: "";
@@ -70,10 +74,11 @@
 }
 #mm-bubble:active { cursor: grabbing; }
 #mm-bubble-lottie {
-  width: 70px;
-  height: 70px;
+  width: 64px;
+  height: 64px;
   pointer-events: none;
   filter: drop-shadow(0 2px 4px rgba(60, 20, 40, 0.2));
+  z-index: 1;
 }
 #mm-bubble:hover {
   transform: scale(1.08);
@@ -147,6 +152,10 @@
   border-radius: 14px 14px 14px 4px;
   transform-origin: top right;
 }
+/* 面板展开时，对话在面板内进行，隐藏悬浮说话气泡避免叠在面板上 */
+#mm-panel.mm-open ~ #mm-say {
+  display: none;
+}
 
 /* ── 桌宠互动菜单（悬停/右键触发）─────────────── */
 #mm-pet-menu {
@@ -172,6 +181,10 @@
   opacity: 1;
   transform: translateX(0) scale(1);
   pointer-events: auto;
+}
+/* 面板展开时，互动菜单移到面板左侧，避免与面板/快捷按钮重叠 */
+#mm-panel.mm-open ~ #mm-pet-menu {
+  right: 312px;
 }
 #mm-pet-menu button {
   border: none;

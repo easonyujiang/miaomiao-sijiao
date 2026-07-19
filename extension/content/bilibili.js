@@ -33,6 +33,7 @@ let bubbleLottieAnim = null;
 let panelOpenedOnce = false;
 
 function setCatState(s) {
+  if (state.catState === s) return;
   state.catState = s;
   const container = document.getElementById("mm-cat-lottie");
   const bubble = document.getElementById("mm-bubble-lottie");
@@ -45,11 +46,19 @@ function setCatState(s) {
     catLottieAnim = lottie.loadAnimation({
       container, renderer: "svg", loop: true, autoplay: true, path,
     });
+    catLottieAnim.addEventListener("data_failed", () => {
+      console.warn("Miao: panel lottie failed", file);
+      container.querySelector("img")?.style.setProperty("opacity", "1");
+    });
   }
   if (bubble) {
     if (bubbleLottieAnim) { bubbleLottieAnim.destroy(); bubbleLottieAnim = null; }
     bubbleLottieAnim = lottie.loadAnimation({
       container: bubble, renderer: "svg", loop: true, autoplay: true, path,
+    });
+    bubbleLottieAnim.addEventListener("data_failed", () => {
+      console.warn("Miao: bubble lottie failed", file);
+      bubble.querySelector("img")?.style.setProperty("opacity", "1");
     });
   }
 }
@@ -434,6 +443,10 @@ function buildUI() {
   root.querySelectorAll(".mm-lottie-fallback").forEach((img) => {
     img.src = chrome.runtime.getURL("assets/cat128.png");
   });
+  const bubbleBtn = root.querySelector("#mm-bubble");
+  if (bubbleBtn) {
+    bubbleBtn.style.backgroundImage = `url(${chrome.runtime.getURL("assets/cat128.png")})`;
+  }
   restorePetPos(root);
   bindEvents(root);
   MiaoPet.init(root, { setCatState, getCatState: () => state.catState });
