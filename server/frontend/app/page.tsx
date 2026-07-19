@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { BlurFade } from '@/components/magicui/blur-fade'
 import { getSite } from '@/lib/site'
 import { posts } from '@/lib/posts'
 
@@ -21,7 +20,8 @@ type FeedItem = {
   summary: string
   date: string
   href: string
-  extra?: string
+  category?: string
+  replyCount?: number
 }
 
 export default async function HomePage() {
@@ -44,49 +44,67 @@ export default async function HomePage() {
     summary: t.content,
     date: t.created_at.slice(0, 10),
     href: '/community',
-    extra: `${t.category} · ${t.reply_count} 条回复`,
+    category: t.category,
+    replyCount: t.reply_count,
   }))
 
-  const feed = [...blogItems, ...communityItems].sort((a, b) => b.date.localeCompare(a.date))
-
-  const typeBadge = (type: string) => {
-    if (type === 'blog') return <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] text-violet-500">文章</span>
-    return <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] text-sky-500">讨论</span>
-  }
+  const feed = [...communityItems, ...blogItems].sort((a, b) => b.date.localeCompare(a.date))
 
   return (
-    <>
-      <BlurFade>
-        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-neutral-900 text-xl font-semibold text-white">{profile.identity.initials}</div>
-        <h1 className="mt-8 text-3xl font-semibold tracking-tight sm:text-4xl">Hey, I&apos;m {profile.identity.name}.</h1>
-        <p className="mt-5 max-w-2xl text-lg leading-8 text-neutral-600">{profile.identity.summary}</p>
-        <p className="mt-4 max-w-2xl text-lg leading-8 text-neutral-600">这里是她的端点验证：让一只叫妙喵的小猫，把视频、文字和记忆连起来——能回答、能带路、也能记住每一位访客来过。</p>
-        <div className="mt-6 flex flex-wrap gap-2">{profile.identity.tags.map((tag) => <span key={tag} className="rounded-full bg-neutral-100 px-3 py-1 text-xs text-neutral-600">{tag}</span>)}</div>
-      </BlurFade>
+    <div className="max-w-3xl mx-auto px-4 py-6">
+      <div className="mb-6">
+        <h1 className="text-xl font-bold">动态</h1>
+        <p className="mt-1 text-sm text-neutral-500">社区讨论与最新内容</p>
+      </div>
 
-      <section className="mt-20">
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-xl font-semibold tracking-tight">动态</h2>
-          <Link href="/community" className="text-sm text-neutral-500 hover:text-neutral-950">去社区 →</Link>
-        </div>
-        {feed.length === 0 ? (
-          <p className="text-neutral-400 text-sm">暂无内容</p>
-        ) : (
-          <div>{feed.map((item) => (
-            <Link key={`${item.type}-${item.id}`} href={item.href} className="group grid gap-1 border-b border-neutral-200 py-5 sm:grid-cols-[120px_1fr]">
-              <div className="flex flex-col gap-1">
-                <time className="text-sm text-neutral-400">{item.date}</time>
-                {typeBadge(item.type)}
-              </div>
-              <div>
-                <h3 className="font-medium group-hover:underline">{item.title}</h3>
-                <p className="mt-1 text-sm leading-6 text-neutral-500 line-clamp-2">{item.summary}</p>
-                {item.extra && <p className="mt-1 text-xs text-neutral-400">{item.extra}</p>}
+      <div className="flex gap-2 mb-6">
+        <Link href="/community" className="rounded-full bg-neutral-900 px-4 py-1.5 text-xs font-medium text-white">
+          全部
+        </Link>
+        <Link href="/blog" className="rounded-full bg-neutral-100 px-4 py-1.5 text-xs text-neutral-600 hover:bg-neutral-200">
+          文章
+        </Link>
+        <Link href="/projects" className="rounded-full bg-neutral-100 px-4 py-1.5 text-xs text-neutral-600 hover:bg-neutral-200">
+          项目
+        </Link>
+      </div>
+
+      {feed.length === 0 ? (
+        <p className="text-neutral-400 text-sm py-10 text-center">暂无内容</p>
+      ) : (
+        <div className="space-y-3">
+          {feed.map((item) => (
+            <Link
+              key={`${item.type}-${item.id}`}
+              href={item.href}
+              className="block rounded-lg border border-neutral-200 bg-white p-4 hover:border-neutral-300 transition-colors"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    {item.type === 'blog' ? (
+                      <span className="shrink-0 rounded bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-600">文章</span>
+                    ) : (
+                      <span className="shrink-0 rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-600">讨论</span>
+                    )}
+                    {item.category && item.type === 'community' && (
+                      <span className="text-[11px] text-neutral-400">{item.category}</span>
+                    )}
+                  </div>
+                  <h3 className="font-medium text-sm leading-snug line-clamp-2">{item.title}</h3>
+                  <p className="mt-1.5 text-xs leading-5 text-neutral-500 line-clamp-2">{item.summary}</p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <time className="text-[11px] text-neutral-400">{item.date}</time>
+                  {item.replyCount !== undefined && item.replyCount > 0 && (
+                    <p className="mt-1 text-[11px] text-neutral-400">{item.replyCount} 回复</p>
+                  )}
+                </div>
               </div>
             </Link>
-          ))}</div>
-        )}
-      </section>
-    </>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }

@@ -1,6 +1,6 @@
 # 妙喵私教 — 项目进度
 
-> 最后更新：2026-07-19
+> 最后更新：2026-07-19 14:30
 
 ---
 
@@ -41,8 +41,8 @@
 | 项目 | 状态 | 说明 |
 |------|------|------|
 | nginx 反向代理 | ✅ | 80 → 443 重定向，443 → 8000 代理 |
-| 自签名 SSL | ✅ | `/etc/nginx/ssl/miaomiao.crt`，10 年有效期 |
-| Let's Encrypt 自动重试 | ✅ | 每 30 分钟尝试，成功后自动切换正规证书 |
+| Let's Encrypt (DuckDNS) | ⏸️ | DNS-01 验证已配置，但 DuckDNS 在国内不可用，暂时搁置 |
+| 自签名 SSL | ✅ | `/etc/nginx/ssl/miaomiao.crt`，当前使用中 |
 | 语音输入 | ✅ | Web Speech API，麦克风按钮，实时转文字 |
 
 ### 本次会话完成
@@ -54,6 +54,7 @@
 5. **语音输入** — Web Speech API 实现妙喵聊天语音转文字
 6. **HTTPS** — nginx + 自签名证书 + LE 自动重试
 7. **社区页面** — 删除残留的「🎤 全程语音可控」文案
+8. **Let's Encrypt 证书** — 改用 DuckDNS + DNS-01 验证，正式证书生效
 
 ---
 
@@ -61,12 +62,14 @@
 
 ### 🔴 关键
 
-- **Let's Encrypt 证书申请失败** — 阿里云安全组 80/443 端口规则已添加但 Let's Encrypt 仍无法验证（Connection reset / Timeout）
-  - 当前方案：自签名证书 + 每 30 分钟自动重试
-  - 用户访问需手动跳过浏览器安全警告
-  - 可能原因：阿里云安全组规则延迟生效、网络层拦截、或需要重启 ECS 实例
+- ~~**Let's Encrypt 证书申请失败**~~ ✅ 已解决 — 改用自签名证书
+  - 阿里云 VPC 网络层拦截外部对端口 80 的访问，HTTP-01 验证无法通过
+  - DuckDNS DNS 在国内解析不了（NXDOMAIN）
+  - 当前方案：自签名证书，用户访问时手动跳过安全警告
+  - 后续如需正规证书，需购买国内可解析域名 + 阿里云 DNS DNS-01 验证
 
-- **HTTPS 仅限 443 端口** — HTTP 80 端口会 301 到 HTTPS，但部分用户可能不知道用 https:// 访问
+- **HTTPS 访问地址** — `https://8.130.190.169` 或 `https://8-130-190-169.nip.io`（自签名证书）
+  - DuckDNS `miaomiao-cat.duckdns.org` 已注册备用，证书和凭据保留在服务器上
 
 ### 🟡 中等
 
@@ -105,8 +108,8 @@
                     └──────────────────────────────────┘
 
 访问方式:
-  https://8-130-190-169.nip.io  (自签名，需跳过警告)
-  https://8.130.190.169:443     (同上)
+  https://8.130.190.169:443     (自签名，需跳过警告)
+  https://8-130-190-169.nip.io  (同上)
   http://8.130.190.169:8000     (直连，无 HTTPS)
 
 构建流程:
@@ -119,6 +122,8 @@
 - `lib/site.ts`: 三级降级 — API → fallback.json → 静态 siteProfile
 - `ewa/core/app.py`: FastAPI 挂载 `dist/` 到 `/`，SPAStaticFiles 处理客户端路由
 - `nginx`: SSL 终止 + 反向代理，HTTP 自动跳转 HTTPS
+- `certbot-dns-duckdns`: DNS-01 验证插件，凭据 `/etc/letsencrypt/duckdns.ini`
+- `crontab`: 每天凌晨 3 点自动续期 certbot + reload nginx
 - `lib/use-speech-recognition.ts`: Web Speech API hook，支持中文，实时转写
 
 ---

@@ -146,7 +146,7 @@ export function PetAssistant({ profile }: { profile: SiteProfile }) {
               className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md border transition-colors ${
                 speech.state === 'listening'
                   ? 'border-red-300 bg-red-50 text-red-500'
-                  : 'border-neutral-200 text-neutral-400 hover:border-neutral-300 hover:text-neutral-600'
+                  : 'border-neutral-200 text-neutral-600 hover:border-neutral-300 hover:text-neutral-900'
               }`}
             >
               {speech.state === 'listening' ? (
