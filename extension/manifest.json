@@ -10,6 +10,7 @@
   "host_permissions": [
     "https://www.douyin.com/*",
     "https://www.bilibili.com/*",
+    "http://127.0.0.1:8000/*",
     "http://8.130.190.169:8000/*",
     "https://8.130.190.169/*",
     "https://miaomiao-cat.duckdns.org/*"

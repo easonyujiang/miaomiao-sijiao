@@ -16,6 +16,7 @@ let state = {
   sessionId: null,
   currentStep: null,
   lessonMode: false,
+  lessonTitle: "",
 };
 
 // ── 猫状态动画 + 音效（购置方案 §四）────────────────────
@@ -184,6 +185,7 @@ async function submitQuiz(answer, stepId) {
 
 function startSession(lessonData) {
   state.lessonId = lessonData.lesson_id;
+  state.lessonTitle = lessonData.title || "本课程";
   state.sessionId = "session_" + Date.now();
   state.lessonMode = true;
   state.currentStep = lessonData.steps[0];
@@ -315,7 +317,7 @@ async function submitAndShow(answer, step) {
     }, 800);
   } else if (result.passed && !result.next_step) {
     setTimeout(() => {
-      appendMessage("🎉 全部通关！罗翔老师的正当防卫精讲你已掌握，小鱼干满满！", "cat");
+      appendMessage(`🎉 全部通关！${state.lessonTitle || "本课程"}你已掌握，小鱼干满满！`, "cat");
       setCatState("levelup");
       MiaoSound.play("levelup");
       fireConfetti(3);

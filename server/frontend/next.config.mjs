@@ -12,6 +12,7 @@ const nextConfig = {
   output: 'export',
   distDir: 'dist',
   trailingSlash: true,
+  skipTrailingSlashRedirect: true,
   pageExtensions: ['js', 'jsx', 'md', 'mdx', 'ts', 'tsx'],
   poweredByHeader: false,
   staticPageGenerationTimeout: 300,

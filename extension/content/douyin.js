@@ -14,6 +14,12 @@ let state = {
   videoMeta: null,   // 从后端拿到的B站对应信息
   messages: [],
   catState: "idle",  // idle / watching / analyzing / correcting / celebrating
+  lessonId: null,
+  sessionId: null,
+  currentStep: null,
+  lessonMode: false,
+  pendingQuizStep: null,
+  lessonTitle: "",
 };
 
 // ── 猫状态动画 + 音效（购置方案 §四）────────────────────
@@ -66,6 +72,25 @@ function fireConfetti(times = 1) {
   confetti({ particleCount: 80, origin: { y: 0.8 } });
   for (let i = 1; i < times; i++) {
     setTimeout(() => confetti({ particleCount: 60, origin: { y: 0.7 } }), 250 * i);
+  }
+}
+
+// 星星逐颗点亮（每颗 200ms + badge 音）
+function lightStars(container, stars) {
+  const row = document.createElement("div");
+  row.className = "mm-stars";
+  container.appendChild(row);
+  container.scrollTop = container.scrollHeight;
+  for (let i = 0; i < 3; i++) {
+    const s = document.createElement("span");
+    s.textContent = "☆";
+    row.appendChild(s);
+    if (i < stars) {
+      setTimeout(() => {
+        s.textContent = "⭐";
+        MiaoSound.play("badge");
+      }, 200 * (i + 1));
+    }
   }
 }
 
@@ -157,7 +182,175 @@ async function chat(message, videoId, currentTimeSec) {
   }
 }
 
-// ── UI 构建 ─────────────────────────────────────────────
+async function loadLesson(videoId) {
+  try {
+    const res = await fetchWithTimeout(`${API_BASE}/api/lesson/load`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ video_id: videoId, platform: PLATFORM }),
+    }, 5000);
+    return res.ok ? await res.json() : null;
+  } catch { return null; }
+}
+
+async function submitQuiz(answer, stepId) {
+  try {
+    const res = await fetchWithTimeout(`${API_BASE}/api/lesson/quiz_submit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: state.sessionId,
+        lesson_id: state.lessonId,
+        step_id: stepId,
+        answer,
+        current_time_sec: getCurrentTime(),
+      }),
+    }, 10000);
+    return res.ok ? await res.json() : null;
+  } catch { return null; }
+}
+
+function startSession(lessonData) {
+  state.lessonId = lessonData.lesson_id;
+  state.lessonTitle = lessonData.title || "本课程";
+  state.sessionId = "session_" + Date.now();
+  state.lessonMode = true;
+  state.currentStep = lessonData.steps[0];
+
+  // 切换快捷按钮到练习模式
+  const qa = document.getElementById("mm-quick-actions");
+  if (qa) qa.innerHTML = `
+    <button class="mm-quick-btn" data-action="quiz_submit">提交答案</button>
+    <button class="mm-quick-btn" data-action="hint">给我提示</button>
+    <button class="mm-quick-btn" data-action="free_chat">自由问答</button>
+  `;
+  // 重新绑定
+  document.querySelectorAll(".mm-quick-btn").forEach(btn => {
+    btn.addEventListener("click", () => handleLessonAction(btn.dataset.action));
+  });
+
+  // 开始第一步
+  showLessonStep(state.currentStep);
+}
+
+function showLessonStep(step) {
+  state.currentStep = step;
+  setCatState("watching");
+  const v = getVideo();
+  if (v) { v.currentTime = step.start_ms / 1000; v.play(); }
+  appendMessage(
+    `📚 第 ${step.id.replace("step_", "")} 关：${step.title}\n\n${step.instruction}\n\n看到 ${formatTime(step.end_ms / 1000)} 后，妙喵会出题考你～`,
+    "cat"
+  );
+  // 监控到达 end_ms 时自动出题
+  scheduleQuiz(step);
+}
+
+let quizTimer = null;
+let quizCheckInterval = null;
+function scheduleQuiz(step) {
+  clearTimeout(quizTimer);
+  if (quizCheckInterval) { clearInterval(quizCheckInterval); quizCheckInterval = null; }
+  quizCheckInterval = setInterval(() => {
+    const current = getCurrentTime() * 1000;
+    if (current >= step.end_ms) {
+      clearInterval(quizCheckInterval);
+      quizCheckInterval = null;
+      promptQuiz(step);
+    }
+  }, 2000);
+}
+
+function promptQuiz(step) {
+  const v = getVideo();
+  if (v) v.pause();
+  appendMessage(`⏸️ 先暂停一下！\n\n📝 ${step.question}\n\n把答案打在输入框发给我，支持口语化回答～`, "cat");
+  // 设置标记：下次 send 是答题
+  state.pendingQuizStep = step;
+  const input = document.getElementById("mm-input");
+  if (input) input.placeholder = "输入你的答案...";
+}
+
+async function handleLessonAction(action) {
+  if (action === "quiz_submit") {
+    const input = document.getElementById("mm-input");
+    const answer = input?.value?.trim();
+    if (!answer) { appendMessage("先写个答案再提交哦 :3", "cat"); return; }
+    await submitAndShow(answer, state.currentStep);
+  } else if (action === "hint") {
+    if (state.currentStep?.hint_seek_ms != null) {
+      seekTo(state.currentStep.hint_seek_ms / 1000);
+      appendMessage(`🔍 帮你跳到 ${formatTime(state.currentStep.hint_seek_ms / 1000)} 看关键片段`, "cat");
+    }
+  } else if (action === "free_chat") {
+    state.pendingQuizStep = null;
+    const input = document.getElementById("mm-input");
+    if (input) input.placeholder = "问妙喵...";
+    appendMessage("切换到自由问答模式，尽管问吧！", "cat");
+  }
+}
+
+async function submitAndShow(answer, step) {
+  showTyping();
+  const result = await submitQuiz(answer, step.id);
+  removeTyping();
+  if (!result) { appendMessage("提交失败，检查一下后端是否在运行", "cat"); return; }
+
+  // 判卷结果：音效 + 状态猫 + 撒花/星星
+  if (result.passed) {
+    const stars = typeof result.stars === "number" ? result.stars : 0;
+    MiaoSound.play(stars >= 3 ? "perfect" : "pass");
+    setCatState("celebrating");
+    fireConfetti();
+    if (stars > 0) lightStars(document.getElementById("mm-messages"), stars);
+  } else {
+    MiaoSound.play("fail");
+    setCatState("failed");
+  }
+
+  const input = document.getElementById("mm-input");
+  if (input) { input.value = ""; input.placeholder = "问妙喵..."; }
+  state.pendingQuizStep = null;
+
+  // 显示妙喵评价
+  const c = document.getElementById("mm-messages");
+  const div = document.createElement("div");
+  div.className = "mm-msg mm-cat";
+  div.textContent = result.cat_message;
+  if (result.seek_to_ms != null && !result.passed) {
+    const ts = document.createElement("div");
+    ts.className = "mm-timestamp-ref";
+    ts.textContent = `⏪ 跳回 ${formatTime(result.seek_to_ms / 1000)} 再看一遍`;
+    ts.addEventListener("click", () => seekTo(result.seek_to_ms / 1000));
+    div.appendChild(ts);
+  }
+  c.appendChild(div);
+  c.scrollTop = c.scrollHeight;
+
+  // 通过了 → 找下一步
+  if (result.passed && result.next_step) {
+    setTimeout(() => {
+      appendMessage(`🌟 太棒了！准备好进入下一关了吗？`, "cat");
+      const btn = document.createElement("button");
+      btn.className = "mm-quick-btn";
+      btn.textContent = "→ 继续下一关";
+      btn.style.margin = "8px auto";
+      btn.addEventListener("click", () => {
+        btn.remove();
+        showLessonStep(result.next_step);
+      });
+      c.appendChild(btn);
+      c.scrollTop = c.scrollHeight;
+    }, 800);
+  } else if (result.passed && !result.next_step) {
+    setTimeout(() => {
+      appendMessage(`🎉 全部通关！${state.lessonTitle || "本课程"}你已掌握，小鱼干满满！`, "cat");
+      setCatState("levelup");
+      MiaoSound.play("levelup");
+      fireConfetti(3);
+    }, 800);
+  }
+}
 function buildUI() {
   if (document.getElementById("miaomiao-root")) return;
 
@@ -360,7 +553,12 @@ async function handleVoiceSubmit(blob) {
   }
 
   appendMessage(res.text, "user");
-  await sendMessage(res.text);
+
+  if (state.pendingQuizStep) {
+    await submitAndShow(res.text, state.pendingQuizStep);
+  } else {
+    await sendMessage(res.text);
+  }
 }
 
 function togglePanel(forceOpen) {
@@ -437,6 +635,13 @@ async function sendMessage(text) {
   if (input) input.value = "";
 
   appendMessage(text, "user");
+
+  // 答题模式：发送即为提交
+  if (state.pendingQuizStep) {
+    await submitAndShow(text, state.pendingQuizStep);
+    return;
+  }
+
   const typing = showTyping();
 
   const result = await chat(text, state.videoId, getCurrentTime());
@@ -472,18 +677,38 @@ async function onVideoDetected(videoId, title) {
   state.videoId = videoId;
   state.videoTitle = title;
   state.messages = [];
+  state.lessonMode = false;
+  state.pendingQuizStep = null;
 
   updateVideoInfo(title);
   updateStateBadge("识别中...");
   MiaoPet.greet();
 
-  const meta = await registerVideo(videoId, title, PLATFORM);
+  const [meta, lesson] = await Promise.all([
+    registerVideo(videoId, title, PLATFORM),
+    loadLesson(videoId),
+  ]);
   state.videoMeta = meta;
 
-  if (meta?.matched_bilibili) {
+  const badge = document.getElementById("mm-state-badge");
+  if (lesson && lesson.lesson_id) {
+    badge.textContent = "练习模式";
+    updateVideoInfo(`${title} (课程：${lesson.title})`);
+    appendMessage(
+      `✨ 这是一节结构化课程：${lesson.title}\n共 ${lesson.total_steps} 关卡，妙喵会带你一步步学！\n\n准备好了吗？`,
+      "cat"
+    );
+    // 显示开始按钮
+    const c = document.getElementById("mm-messages");
+    const btn = document.createElement("button");
+    btn.className = "mm-quick-btn";
+    btn.textContent = "🚀 开始学习！";
+    btn.style.margin = "8px auto";
+    btn.addEventListener("click", () => { btn.remove(); startSession(lesson); });
+    c.appendChild(btn);
+  } else if (meta?.matched_bilibili) {
     updateStateBadge("已就绪");
     updateVideoInfo(`${title} (已匹配B站字幕)`);
-    // 主动问候
     document.getElementById("mm-messages").innerHTML = "";
     appendMessage(
       `猫猫找到这期视频的完整字幕啦！\n` +

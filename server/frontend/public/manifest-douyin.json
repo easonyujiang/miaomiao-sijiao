@@ -1,0 +1,19 @@
+{
+  "name": "妙喵私教",
+  "short_name": "妙喵",
+  "description": "把抖音/B站教学视频变成一对一私教",
+  "start_url": "/douyin/?source=pwa",
+  "display": "standalone",
+  "background_color": "#fff1f2",
+  "theme_color": "#f472b6",
+  "orientation": "portrait",
+  "scope": "/douyin/",
+  "icons": [
+    {
+      "src": "/cat-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
